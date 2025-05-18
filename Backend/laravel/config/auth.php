@@ -40,6 +40,12 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+
+        'api' => [
+            'driver' => 'sanctum',
+            'provider' => 'system.user_a',  // تم تغييره من 'users' إلى 'user_a'
+            'hash' => false,
+        ],
     ],
 
     /*
@@ -63,6 +69,11 @@ return [
         'users' => [
             'driver' => 'eloquent',
             'model' => env('AUTH_MODEL', App\Models\User::class),
+        ],
+
+        'user_a' => [  // إضافة مزود جديد للمستخدمين
+            'driver' => 'eloquent',
+            'model' => App\Models\UserA::class,
         ],
 
         // 'users' => [

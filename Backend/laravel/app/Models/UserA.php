@@ -5,8 +5,9 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use PHPOpenSourceSaver\JWTAuth\Contracts\JWTSubject;
 
-class UserA extends Authenticatable
+class UserA extends Authenticatable implements JWTSubject
 {
     use HasFactory, Notifiable;
 
@@ -24,6 +25,22 @@ class UserA extends Authenticatable
         'remember_token',
     ];
 
+    protected $casts = [
+        'active' => 'boolean',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+    ];
+
+
+    public function getJWTIdentifier()
+    {
+        return $this->getKey();
+    }
+
+    public function getJWTCustomClaims()
+    {
+        return [];
+    }
     // دالة لتحديد ما إذا كان المستخدم مدير
     public function isAdmin()
     {
