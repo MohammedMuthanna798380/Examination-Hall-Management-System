@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Illuminate\Http\Request;
 use App\Http\Controllers\API\LoginController;
 
 Route::get('/', function () {
@@ -11,6 +12,13 @@ Route::get('/check-connection', function () {
     return response()->json(['message' => 'Laravel is connected']);
 });
 
+Route::post('/login', function (Request $request) {
+    return response()->json([
+        'email' => $request->email,
+        'password' => $request->password,
+        'message' => 'تم استقبال البيانات من React'
+    ]);
+});
 // مسارات المصادقة (لا تتطلب رمز مصادقة)
 // Route::get('/login', [LoginController::class, 'login']);
 

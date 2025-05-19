@@ -1,12 +1,12 @@
 <?php
 
 return [
-    'paths' => ['*'],
+    'paths' => ['*', 'api/*', 'sanctum/csrf-cookie'],
     'allowed_methods' => ['*'],
-    'allowed_origins' => ['http://localhost:3000'], // في بيئة الإنتاج، يجب تحديد المجالات المسموح بها فقط مثل 'http://localhost:3000'
+    'allowed_origins' => ['*'],  // أو ['http://localhost:3000'] بشكل أكثر تحديدًا
     'allowed_origins_patterns' => [],
     'allowed_headers' => ['*'],
     'exposed_headers' => [],
     'max_age' => 0,
-    'supports_credentials' => true, // مهم جداً لتمكين مشاركة ملفات تعريف الارتباط
+    'supports_credentials' => true,
 ];

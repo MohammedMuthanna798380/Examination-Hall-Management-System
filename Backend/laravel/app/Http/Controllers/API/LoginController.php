@@ -18,7 +18,7 @@ class LoginController extends Controller
      */
     public function login(Request $request)
     {
-        dd($request->all());
+        // dd($request->all());
         // التحقق من صحة البيانات
         $request->validate([
             'username' => 'required|string',
