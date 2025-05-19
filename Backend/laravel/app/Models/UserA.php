@@ -5,11 +5,11 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use PHPOpenSourceSaver\JWTAuth\Contracts\JWTSubject;
+use Laravel\Sanctum\HasApiTokens;
 
-class UserA extends Authenticatable implements JWTSubject
+class UserA extends Authenticatable
 {
-    use HasFactory, Notifiable;
+    use HasFactory, Notifiable, HasApiTokens;
 
     protected $table = 'system.user_a';
 
@@ -27,20 +27,11 @@ class UserA extends Authenticatable implements JWTSubject
 
     protected $casts = [
         'active' => 'boolean',
+        'password' => 'hashed',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
 
-
-    public function getJWTIdentifier()
-    {
-        return $this->getKey();
-    }
-
-    public function getJWTCustomClaims()
-    {
-        return [];
-    }
     // دالة لتحديد ما إذا كان المستخدم مدير
     public function isAdmin()
     {
@@ -57,10 +48,5 @@ class UserA extends Authenticatable implements JWTSubject
     public function logs()
     {
         return $this->morphMany(SystemLog::class, 'loggable');
-    }
-
-    public function getAuthIdentifierName()
-    {
-        return 'username';
     }
 }

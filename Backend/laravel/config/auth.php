@@ -34,7 +34,6 @@ return [
     | Supported: "session"
     |
     */
-
     'guards' => [
         'web' => [
             'driver' => 'session',
@@ -43,7 +42,7 @@ return [
 
         'api' => [
             'driver' => 'sanctum',
-            'provider' => 'system.user_a',  // تم تغييره من 'users' إلى 'user_a'
+            'provider' => 'user_a',
             'hash' => false,
         ],
     ],
@@ -68,18 +67,13 @@ return [
     'providers' => [
         'users' => [
             'driver' => 'eloquent',
-            'model' => env('AUTH_MODEL', App\Models\User::class),
+            'model' => App\Models\User::class,
         ],
 
-        'user_a' => [  // إضافة مزود جديد للمستخدمين
+        'user_a' => [
             'driver' => 'eloquent',
             'model' => App\Models\UserA::class,
         ],
-
-        // 'users' => [
-        //     'driver' => 'database',
-        //     'table' => 'users',
-        // ],
     ],
 
     /*
