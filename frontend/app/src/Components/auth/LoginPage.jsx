@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import "./LoginPage.css";
 
-const LoginPage = () => {
+const LoginPage = ({ onLoginSuccess }) => {
   const [credentials, setCredentials] = useState({
     username: "",
     password: "",
@@ -48,6 +48,10 @@ const LoginPage = () => {
     setIsLoading(true);
 
     try {
+      // For development/testing, you can use a mock successful login
+      // In production, this would be replaced by a real API call
+
+      // Uncomment this for real API usage
       const response = await fetch("http://localhost:8000/api/login", {
         method: "POST",
         headers: {
@@ -59,28 +63,32 @@ const LoginPage = () => {
 
       const data = await response.json();
 
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
       if (!response.ok || !data.status) {
         throw new Error(data.message || "فشل تسجيل الدخول");
       }
 
-      // تخزين رمز المصادقة وبيانات المستخدم
+      // Store token and user data
       localStorage.setItem("token", data.access_token);
       localStorage.setItem("user", JSON.stringify(data.user));
+      // */
 
-      // if (!response.ok) {
-      //   throw new Error('فشل تسجيل الدخول');
-      // }
+      // For testing/development (remove in production)
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      // const data = await response.json();
-      // localStorage.setItem('token', data.token);
-      // localStorage.setItem('user', JSON.stringify(data.user));
+      // Mock successful login data
+      const mockUserData = {
+        id: 1,
+        username: credentials.username,
+        role: "admin",
+      };
 
-      // Redirect to dashboard
-      // window.location.href = '/dashboard';
+      localStorage.setItem("token", "mock-jwt-token-for-testing");
+      localStorage.setItem("user", JSON.stringify(mockUserData));
 
-      console.log("تم تسجيل الدخول بنجاح", credentials);
+      // Call the onLoginSuccess callback from parent component
+      if (onLoginSuccess) {
+        onLoginSuccess();
+      }
     } catch (error) {
       setErrors({
         general: "فشل تسجيل الدخول. يرجى التحقق من اسم المستخدم وكلمة المرور.",
