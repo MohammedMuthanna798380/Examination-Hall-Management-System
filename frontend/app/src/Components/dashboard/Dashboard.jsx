@@ -109,6 +109,10 @@ const Dashboard = ({ onLogout }) => {
     alert("سيتم إنشاء التوزيع لليوم الحالي");
   };
 
+  const s = {
+    backgroundColor: "#27ae60",
+    padding: "6px 16px",
+  };
   return (
     <div className="dashboard-container">
       <Sidebar userName={userName} onLogout={onLogout} activePage="dashboard" />
@@ -151,6 +155,7 @@ const Dashboard = ({ onLogout }) => {
                   <button
                     className="action-btn create-distribution-btn"
                     onClick={handleCreateDistribution}
+                    style={s}
                   >
                     إنشاء التوزيع
                   </button>

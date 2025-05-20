@@ -33,7 +33,10 @@ const Sidebar = ({ userName, onLogout, activePage }) => {
           <span className="menu-icon">👥</span>
           إدارة المشرفين والملاحظين
         </li>
-        <li className={activePage === "halls" ? "active" : ""}>
+        <li
+          className={activePage === "halls" ? "active" : ""}
+          onClick={() => handleNavigation("/halls")}
+        >
           <span className="menu-icon">🏢</span>
           إدارة القاعات
         </li>
