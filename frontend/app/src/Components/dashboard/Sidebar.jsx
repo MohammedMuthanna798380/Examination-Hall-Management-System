@@ -40,7 +40,10 @@ const Sidebar = ({ userName, onLogout, activePage }) => {
           <span className="menu-icon">🏢</span>
           إدارة القاعات
         </li>
-        <li className={activePage === "exams" ? "active" : ""}>
+        <li
+          className={activePage === "exams" ? "active" : ""}
+          onClick={() => handleNavigation("/exams")}
+        >
           <span className="menu-icon">📋</span>
           جدول الامتحانات
         </li>

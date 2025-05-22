@@ -3,6 +3,7 @@ import LoginPage from './Components/auth/LoginPage';
 import Dashboard from './Components/dashboard/Dashboard';
 import UsersManagement from './Components/dashboard/UsersManagement';
 import RoomsManagement from './Components/dashboard/RoomsManagement';
+import ExamSchedule from './Components/dashboard/ExamSchedule';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import './App.css';
 
@@ -67,6 +68,14 @@ function App() {
         <Route
           path="/"
           element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />}
+        />
+        <Route
+          path="/exams"
+          element={
+            isAuthenticated ?
+              <ExamSchedule onLogout={handleLogout} /> :
+              <Navigate to="/login" replace />
+          }
         />
       </Routes>
     </Router>

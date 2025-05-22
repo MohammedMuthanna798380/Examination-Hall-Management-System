@@ -434,6 +434,7 @@ const RoomsManagement = ({ onLogout }) => {
               <table className="rooms-table">
                 <thead>
                   <tr>
+                    <th>#</th>
                     <th>اسم القاعة</th>
                     <th>المبنى</th>
                     <th>الدور</th>
@@ -447,8 +448,9 @@ const RoomsManagement = ({ onLogout }) => {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredRooms.map((room) => (
+                  {filteredRooms.map((room, index) => (
                     <tr key={room.id}>
+                      <td>{index + 1}</td>
                       <td>{room.name}</td>
                       <td>{room.building_name}</td>
                       <td>{room.floor_name}</td>

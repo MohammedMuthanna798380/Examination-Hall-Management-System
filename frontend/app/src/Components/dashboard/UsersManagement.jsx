@@ -418,6 +418,7 @@ const UsersManagement = ({ onLogout }) => {
               <table className="users-table">
                 <thead>
                   <tr>
+                    <th>#</th>
                     <th>الاسم</th>
                     <th>النوع</th>
                     <th>الرتبة</th>
@@ -431,11 +432,12 @@ const UsersManagement = ({ onLogout }) => {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredUsers.map((user) => (
+                  {filteredUsers.map((user, index) => (
                     <tr
                       key={user.id}
                       className={user.status === "deleted" ? "row-deleted" : ""}
                     >
+                      <td>{index + 1}</td>
                       <td>{user.name}</td>
                       <td>{translateType(user.type)}</td>
                       <td>{translateRank(user.rank)}</td>
