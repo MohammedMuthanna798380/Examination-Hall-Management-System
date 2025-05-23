@@ -68,7 +68,10 @@ const Sidebar = ({ userName, onLogout, activePage }) => {
           <span className="menu-icon">📈</span>
           التقارير والإحصائيات
         </li>
-        <li className={activePage === "settings" ? "active" : ""}>
+        <li
+          className={activePage === "settings" ? "active" : ""}
+          onClick={() => handleNavigation("/settings")}
+        >
           <span className="menu-icon">⚙️</span>
           الإعدادات
         </li>

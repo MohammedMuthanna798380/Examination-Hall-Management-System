@@ -7,6 +7,7 @@ import ExamSchedule from './Components/dashboard/ExamSchedule';
 import DailyAssignment from './Components/dashboard/DailyAssignment';
 import AbsenceReplacementManagement from './Components/dashboard/AbsenceReplacementManagement';
 import Reports from './Components/dashboard/Reports';
+import Settings from './Components/dashboard/Settings';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import './App.css';
 
@@ -103,6 +104,14 @@ function App() {
           element={
             isAuthenticated ?
               <Reports onLogout={handleLogout} /> :
+              <Navigate to="/login" replace />
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            isAuthenticated ?
+              <Settings onLogout={handleLogout} /> :
               <Navigate to="/login" replace />
           }
         />
