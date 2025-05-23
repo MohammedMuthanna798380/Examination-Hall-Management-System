@@ -16,6 +16,9 @@ const Dashboard = ({ onLogout }) => {
     halls: 0,
     todayExams: 0,
   });
+  const handleNavigation = (path) => {
+    navigate(path);
+  };
   const [absenceData, setAbsenceData] = useState([]);
   const [examsData, setExamsData] = useState([]);
   const [notifications, setNotifications] = useState([]);
@@ -154,7 +157,7 @@ const Dashboard = ({ onLogout }) => {
                   <p>لم يتم إنشاء توزيع لهذا اليوم بعد</p>
                   <button
                     className="action-btn create-distribution-btn"
-                    onClick={handleCreateDistribution}
+                    onClick={() => handleNavigation("/assignments")}
                     style={s}
                   >
                     إنشاء التوزيع

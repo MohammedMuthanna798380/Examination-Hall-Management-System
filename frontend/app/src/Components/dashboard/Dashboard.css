@@ -260,6 +260,9 @@ body {
     background-color: #27ae60;
 }
 
+.create-distribution-btn:hover {
+    color: #ffffff;
+}
 
 /* Tables */
 .mini-table {

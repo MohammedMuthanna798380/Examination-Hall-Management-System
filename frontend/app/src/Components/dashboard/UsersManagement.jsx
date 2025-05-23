@@ -458,7 +458,7 @@ const UsersManagement = ({ onLogout }) => {
                       <td>
                         <div className="action-buttons">
                           <button
-                            className="action-btn edit-btn"
+                            className="action-btn-user edit-btn"
                             onClick={() => handleEditUser(user)}
                             title="تعديل"
                           >
@@ -467,7 +467,7 @@ const UsersManagement = ({ onLogout }) => {
 
                           {user.status === "active" ? (
                             <button
-                              className="action-btn suspend-btn"
+                              className="action-btn-user suspend-btn"
                               onClick={() => handleSuspendUser(user.id)}
                               title="تعليق"
                             >
@@ -475,7 +475,7 @@ const UsersManagement = ({ onLogout }) => {
                             </button>
                           ) : user.status === "suspended" ? (
                             <button
-                              className="action-btn activate-btn"
+                              className="action-btn-user activate-btn"
                               onClick={() => handleActivateUser(user.id)}
                               title="تنشيط"
                             >
@@ -485,7 +485,7 @@ const UsersManagement = ({ onLogout }) => {
 
                           {user.status !== "deleted" && (
                             <button
-                              className="action-btn delete-btn"
+                              className="action-btn-user delete-btn"
                               onClick={() => handleDeleteUser(user.id)}
                               title="حذف"
                             >

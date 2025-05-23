@@ -597,7 +597,7 @@ const ExamSchedule = ({ onLogout }) => {
                       <td>
                         <div className="action-buttons">
                           <button
-                            className="action-btn edit-btn"
+                            className="action-btn-exam edit-btn"
                             onClick={() => handleEditSchedule(schedule)}
                             title="تعديل"
                           >
@@ -606,7 +606,7 @@ const ExamSchedule = ({ onLogout }) => {
 
                           {schedule.distribution_status === "incomplete" ? (
                             <button
-                              className="action-btn create-distribution-btn"
+                              className="action-btn-exam"
                               onClick={() => handleCreateDistribution(schedule)}
                               title="إنشاء توزيع"
                             >
@@ -614,7 +614,7 @@ const ExamSchedule = ({ onLogout }) => {
                             </button>
                           ) : (
                             <button
-                              className="action-btn view-distribution-btn"
+                              className="action-btn-exam view-distribution-btn"
                               onClick={() => handleViewDistribution(schedule)}
                               title="عرض التوزيع"
                             >
@@ -623,7 +623,7 @@ const ExamSchedule = ({ onLogout }) => {
                           )}
 
                           <button
-                            className="action-btn delete-btn"
+                            className="action-btn-exam delete-btn"
                             onClick={() => handleDeleteSchedule(schedule.id)}
                             title="حذف"
                           >

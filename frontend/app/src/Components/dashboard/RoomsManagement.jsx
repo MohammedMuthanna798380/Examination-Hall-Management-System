@@ -471,7 +471,7 @@ const RoomsManagement = ({ onLogout }) => {
                       <td>
                         <div className="action-buttons">
                           <button
-                            className="action-btn edit-btn"
+                            className="action-btn-room edit-btn"
                             onClick={() => handleEditRoom(room)}
                             title="تعديل"
                           >
@@ -479,7 +479,7 @@ const RoomsManagement = ({ onLogout }) => {
                           </button>
 
                           <button
-                            className={`action-btn ${
+                            className={`action-btn-room ${
                               room.status === "available"
                                 ? "disable-btn"
                                 : "enable-btn"
@@ -493,7 +493,7 @@ const RoomsManagement = ({ onLogout }) => {
                           </button>
 
                           <button
-                            className="action-btn delete-btn"
+                            className="action-btn-room delete-btn"
                             onClick={() => handleDeleteRoom(room.id)}
                             title="حذف"
                           >
