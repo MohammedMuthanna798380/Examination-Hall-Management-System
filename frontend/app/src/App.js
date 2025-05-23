@@ -4,6 +4,8 @@ import Dashboard from './Components/dashboard/Dashboard';
 import UsersManagement from './Components/dashboard/UsersManagement';
 import RoomsManagement from './Components/dashboard/RoomsManagement';
 import ExamSchedule from './Components/dashboard/ExamSchedule';
+import DailyAssignment from './Components/dashboard/DailyAssignment';
+import DailyAssignmentSystem from './Components/dashboard/DailyAssignmentSystem';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import './App.css';
 
@@ -74,6 +76,23 @@ function App() {
           element={
             isAuthenticated ?
               <ExamSchedule onLogout={handleLogout} /> :
+              <Navigate to="/login" replace />
+          }
+        />
+        <Route
+          path="/assignments"
+          element={
+            isAuthenticated ?
+              <DailyAssignment onLogout={handleLogout} /> :
+              <Navigate to="/login" replace />
+          }
+        />
+
+        <Route
+          path="/absences"
+          element={
+            isAuthenticated ?
+              <DailyAssignmentSystem onLogout={handleLogout} /> :
               <Navigate to="/login" replace />
           }
         />

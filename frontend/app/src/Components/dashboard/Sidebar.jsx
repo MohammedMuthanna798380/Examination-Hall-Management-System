@@ -9,7 +9,7 @@ const Sidebar = ({ userName, onLogout, activePage }) => {
   };
 
   return (
-    <div className="dashboard-sidebar">
+    <div className="dashboard-sidebar print-hidden">
       <div className="sidebar-header">
         <h2>نظام إدارة المشرفين والملاحظين</h2>
         <p>كلية الهندسة - جامعة تعز</p>
@@ -47,11 +47,17 @@ const Sidebar = ({ userName, onLogout, activePage }) => {
           <span className="menu-icon">📋</span>
           جدول الامتحانات
         </li>
-        <li className={activePage === "assignments" ? "active" : ""}>
+        <li
+          className={activePage === "assignments" ? "active" : ""}
+          onClick={() => handleNavigation("/assignments")}
+        >
           <span className="menu-icon">📝</span>
           التوزيع اليومي
         </li>
-        <li className={activePage === "absences" ? "active" : ""}>
+        <li
+          className={activePage === "absences" ? "active" : ""}
+          onClick={() => handleNavigation("/absences")}
+        >
           <span className="menu-icon">⚠️</span>
           إدارة الغياب والاستبدال
         </li>

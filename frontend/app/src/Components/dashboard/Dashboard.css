@@ -260,12 +260,6 @@ body {
     background-color: #27ae60;
 }
 
-.create-distribution-btn:hover {
-    /* background-color: #27ae60; */
-
-    box-shadow: 0 6px 10px rgba(0, 0, 0, 0.1);
-    border: 1px solid #27ae60;
-}
 
 /* Tables */
 .mini-table {
