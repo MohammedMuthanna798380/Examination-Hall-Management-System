@@ -26,7 +26,7 @@ return new class extends Migration
             // علاقة مع من أنشأ الترخيص (مبسطة)
             $table->foreignId('created_by')->nullable()
                 ->references('id')
-                ->on('system.user_admins')
+                ->on('system.user_a')
                 ->onDelete('set null');
 
             $table->timestamps();

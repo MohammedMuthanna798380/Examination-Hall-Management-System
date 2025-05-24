@@ -384,3 +384,87 @@ body {
         grid-template-columns: 1fr;
     }
 }
+
+/* إضافة هذا في نهاية ملف Dashboard.css */
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+/* تحسين شكل التنبيهات */
+.notification {
+    transition: all 0.3s ease;
+}
+
+.notification:hover {
+    transform: translateX(-5px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* تحسين شكل البطاقات */
+.dashboard-card {
+    transition: all 0.3s ease;
+}
+
+.dashboard-card:hover {
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* أنماط الحالة الفارغة */
+.empty-state {
+    padding: 40px 20px;
+    text-align: center;
+    color: #7f8c8d;
+}
+
+.empty-state p {
+    margin-bottom: 15px;
+    font-size: 1.1rem;
+}
+
+/* أنماط التحذيرات */
+.warning-banner {
+    background-color: #fff3cd;
+    border: 1px solid #ffeaa7;
+    color: #856404;
+    padding: 12px 16px;
+    border-radius: 6px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.warning-banner button {
+    margin-right: auto;
+    padding: 6px 12px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: background-color 0.3s ease;
+}
+
+.warning-banner button:hover {
+    background-color: #0056b3;
+}
+
+/* أنماط حالة التوزيع */
+.distribution-exists {
+    text-align: center;
+    padding: 30px 20px;
+}
+
+.distribution-exists>div:first-child {
+    font-size: 1.2rem;
+    margin-bottom: 20px;
+}

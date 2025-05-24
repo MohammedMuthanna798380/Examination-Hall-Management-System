@@ -27,3 +27,18 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [LoginController::class, 'logout']);
     Route::get('/user', [LoginController::class, 'getUser']);
 });
+
+// إضافة هذه الطرق بعد طرق المصادقة الموجودة
+Route::middleware('auth:sanctum')->group(function () {
+    // طرق المصادقة الموجودة
+    Route::post('/logout', [LoginController::class, 'logout']);
+    Route::get('/user', [LoginController::class, 'getUser']);
+
+    // طرق لوحة التحكم الجديدة
+    Route::get('/dashboard/statistics', [App\Http\Controllers\API\DashboardController::class, 'getStatistics']);
+    Route::get('/dashboard/absence-data', [App\Http\Controllers\API\DashboardController::class, 'getAbsenceData']);
+    Route::get('/dashboard/tomorrow-exams', [App\Http\Controllers\API\DashboardController::class, 'getTomorrowExams']);
+    Route::get('/dashboard/notifications', [App\Http\Controllers\API\DashboardController::class, 'getNotifications']);
+    Route::get('/dashboard/quick-stats', [App\Http\Controllers\API\DashboardController::class, 'getQuickStats']);
+    Route::get('/dashboard/check-distribution', [App\Http\Controllers\API\DashboardController::class, 'checkTodayDistribution']);
+});

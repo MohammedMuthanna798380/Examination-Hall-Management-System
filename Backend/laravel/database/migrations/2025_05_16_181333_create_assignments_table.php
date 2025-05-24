@@ -16,7 +16,7 @@ return new class extends Migration
             $table->date('date'); // Assignment date
             $table->enum('period', ['morning', 'evening'])->default('morning'); // Period
             $table->foreignId('room_id')->constrained('public.rooms')->onDelete('cascade');
-            $table->foreignId('supervisor_id')->nullable()->constrained('public.users')->onDelete('set null');
+            $table->foreignId('supervisor_id')->nullable()->constrained('public.users_s')->onDelete('set null');
             $table->enum('status', ['complete', 'incomplete'])->default('incomplete'); // Status
             $table->enum('assignment_type', ['automatic', 'manual', 'temporary'])->default('automatic'); // Type of assignment
             $table->timestamps();

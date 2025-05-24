@@ -1,20 +1,41 @@
 import React from "react";
 
-const Header = ({ title, onRefresh }) => {
+const Header = ({ title, onRefresh, isRefreshing = false }) => {
   const s = {
-    // backgroundColor: "#3498db",
     padding: "20px",
-    // boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
     borderBottom: "2px solid #ccc",
-    // display: "fixed",
-    // top: "0",
   };
+
   return (
     <div className="dashboard-header" style={s}>
       <h2>{title}</h2>
       <div className="header-actions">
-        <button className="refresh-btn" onClick={onRefresh}>
-          تحديث البيانات
+        <button
+          className="refresh-btn"
+          onClick={onRefresh}
+          disabled={isRefreshing}
+          style={{
+            backgroundColor: isRefreshing ? "#95a5a6" : "#3498db",
+            cursor: isRefreshing ? "not-allowed" : "pointer",
+            opacity: isRefreshing ? 0.7 : 1,
+            display: "flex",
+            alignItems: "center",
+            gap: "5px",
+          }}
+        >
+          {isRefreshing && (
+            <div
+              style={{
+                width: "16px",
+                height: "16px",
+                border: "2px solid transparent",
+                borderTop: "2px solid white",
+                borderRadius: "50%",
+                animation: "spin 1s linear infinite",
+              }}
+            ></div>
+          )}
+          {isRefreshing ? "جاري التحديث..." : "تحديث البيانات"}
         </button>
         <div className="date-display">
           {new Date().toLocaleDateString("ar-EG", {
@@ -28,5 +49,4 @@ const Header = ({ title, onRefresh }) => {
     </div>
   );
 };
-
 export default Header;
