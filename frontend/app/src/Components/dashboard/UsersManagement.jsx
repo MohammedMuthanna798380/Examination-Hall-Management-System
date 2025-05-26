@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import Sidebar from "./Sidebar";
 import Header from "./Header";
-import ToastNotification from "../common/ToastNotification";
 import { usersService } from "../../services/usersService";
 import "./UsersManagement.css";
 
@@ -10,66 +9,43 @@ const UsersManagement = ({ onLogout }) => {
   const [filteredUsers, setFilteredUsers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterType, setFilterType] = useState("all"); // 'all', 'supervisor', 'observer'
-  const [filterStatus, setFilterStatus] = useState("all"); // 'all', 'active', 'suspended', 'deleted'
-  const [filterRank, setFilterRank] = useState("all"); // 'all', 'college_employee', 'external_employee'
+  const [filterType, setFilterType] = useState("all");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [filterRank, setFilterRank] = useState("all");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [userName, setUserName] = useState("");
-  const [toast, setToast] = useState(null);
-  const [statistics, setStatistics] = useState({
-    total: 0,
-    supervisors: 0,
-    observers: 0,
-    college_employees: 0,
-  });
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    // Get user info from localStorage
     const user = JSON.parse(localStorage.getItem("user")) || {};
     setUserName(user.username || "المستخدم");
-
-    // Fetch users from API
     fetchUsers();
   }, []);
 
   useEffect(() => {
-    // Apply filters and search when data changes
     applyFiltersAndSearch();
   }, [users, searchTerm, filterType, filterStatus, filterRank]);
 
-  // دالة لعرض التنبيهات
-  const showToast = (message, type = "info") => {
-    setToast({ message, type });
-  };
-
   const fetchUsers = async () => {
     setIsLoading(true);
+    setError(null);
+
     try {
-      // تحضير الفلاتر
-      const filters = {
-        type: filterType !== "all" ? filterType : undefined,
-        status: filterStatus !== "all" ? filterStatus : undefined,
-        rank: filterRank !== "all" ? filterRank : undefined,
-        search: searchTerm.trim() || undefined,
-      };
+      const filters = {};
+      if (filterType !== "all") filters.type = filterType;
+      if (filterStatus !== "all") filters.status = filterStatus;
+      if (filterRank !== "all") filters.rank = filterRank;
+      if (searchTerm.trim()) filters.search = searchTerm.trim();
 
-      // إزالة الفلاتر الفارغة
-      Object.keys(filters).forEach((key) => {
-        if (!filters[key]) {
-          delete filters[key];
-        }
-      });
-
-      const usersData = await usersService.getUsers(filters);
-      setUsers(usersData);
-
-      // جلب الإحصائيات
-      const stats = await usersService.getStatistics();
-      setStatistics(stats);
+      const userData = await usersService.getUsers(filters);
+      setUsers(userData);
+      setFilteredUsers(userData);
     } catch (error) {
       console.error("Error fetching users:", error);
-      showToast("حدث خطأ أثناء تحميل البيانات: " + error.message, "error");
+      setError(error.message || "فشل في تحميل البيانات من الخادم");
+      setUsers([]);
+      setFilteredUsers([]);
     } finally {
       setIsLoading(false);
     }
@@ -78,34 +54,26 @@ const UsersManagement = ({ onLogout }) => {
   const applyFiltersAndSearch = () => {
     let result = [...users];
 
-    // Apply type filter
     if (filterType !== "all") {
       result = result.filter((user) => user.type === filterType);
     }
 
-    // Apply status filter
     if (filterStatus !== "all") {
       result = result.filter((user) => user.status === filterStatus);
     }
 
-    // Apply rank filter
     if (filterRank !== "all") {
       result = result.filter((user) => user.rank === filterRank);
     }
 
-    // Apply search
     if (searchTerm.trim() !== "") {
       const term = searchTerm.trim().toLowerCase();
-      result = result.filter((user) => {
-        const name = user?.name?.toLowerCase() || "";
-        const specialization = user?.specialization?.toLowerCase() || "";
-        const phone = user?.phone || "";
-        return (
-          name.includes(term) ||
-          specialization.includes(term) ||
-          phone.includes(term)
-        );
-      });
+      result = result.filter(
+        (user) =>
+          user.name.toLowerCase().includes(term) ||
+          user.specialization.toLowerCase().includes(term) ||
+          user.phone.includes(term)
+      );
     }
 
     setFilteredUsers(result);
@@ -132,7 +100,7 @@ const UsersManagement = ({ onLogout }) => {
   };
 
   const handleAddUser = () => {
-    setCurrentUser(null); // Reset current user for new user
+    setCurrentUser(null);
     setIsModalOpen(true);
   };
 
@@ -145,15 +113,10 @@ const UsersManagement = ({ onLogout }) => {
     if (window.confirm("هل أنت متأكد من رغبتك في حذف هذا المستخدم؟")) {
       try {
         await usersService.deleteUser(userId);
-        // تحديث الحالة المحلية
-        const updatedUsers = users.map((user) =>
-          user.id === userId ? { ...user, status: "deleted" } : user
-        );
-        setUsers(updatedUsers);
-        showToast("تم حذف المستخدم بنجاح", "success");
+        await fetchUsers(); // إعادة تحميل البيانات
       } catch (error) {
         console.error("Error deleting user:", error);
-        showToast("حدث خطأ أثناء حذف المستخدم: " + error.message, "error");
+        alert("فشل في حذف المستخدم: " + (error.message || "خطأ غير محدد"));
       }
     }
   };
@@ -162,15 +125,10 @@ const UsersManagement = ({ onLogout }) => {
     if (window.confirm("هل أنت متأكد من رغبتك في تعليق هذا المستخدم؟")) {
       try {
         await usersService.suspendUser(userId);
-        // تحديث الحالة المحلية
-        const updatedUsers = users.map((user) =>
-          user.id === userId ? { ...user, status: "suspended" } : user
-        );
-        setUsers(updatedUsers);
-        showToast("تم تعليق المستخدم بنجاح", "success");
+        await fetchUsers();
       } catch (error) {
         console.error("Error suspending user:", error);
-        showToast("حدث خطأ أثناء تعليق المستخدم: " + error.message, "error");
+        alert("فشل في تعليق المستخدم: " + (error.message || "خطأ غير محدد"));
       }
     }
   };
@@ -178,15 +136,10 @@ const UsersManagement = ({ onLogout }) => {
   const handleActivateUser = async (userId) => {
     try {
       await usersService.activateUser(userId);
-      // تحديث الحالة المحلية
-      const updatedUsers = users.map((user) =>
-        user.id === userId ? { ...user, status: "active" } : user
-      );
-      setUsers(updatedUsers);
-      showToast("تم تنشيط المستخدم بنجاح", "success");
+      await fetchUsers();
     } catch (error) {
       console.error("Error activating user:", error);
-      showToast("حدث خطأ أثناء تنشيط المستخدم: " + error.message, "error");
+      alert("فشل في تنشيط المستخدم: " + (error.message || "خطأ غير محدد"));
     }
   };
 
@@ -197,38 +150,15 @@ const UsersManagement = ({ onLogout }) => {
   const handleSaveUser = async (userData) => {
     try {
       if (currentUser) {
-        // تحديث مستخدم موجود
-        const updatedUser = await usersService.updateUser(
-          userData.id,
-          userData
-        );
-        const updatedUsers = users.map((user) =>
-          user.id === userData.id ? updatedUser : user
-        );
-        setUsers(updatedUsers);
-        showToast("تم تحديث بيانات المستخدم بنجاح", "success");
+        await usersService.updateUser(currentUser.id, userData);
       } else {
-        // إضافة مستخدم جديد
-        const newUser = await usersService.createUser(userData);
-        setUsers([...users, newUser]);
-        showToast("تم إضافة المستخدم بنجاح", "success");
+        await usersService.createUser(userData);
       }
-      setIsModalOpen(false);
-
-      // إعادة تحميل البيانات للتأكد من التحديث
       await fetchUsers();
+      setIsModalOpen(false);
     } catch (error) {
       console.error("Error saving user:", error);
-
-      // عرض رسائل الخطأ من الخادم
-      if (error.message && error.message.includes("errors")) {
-        showToast(
-          "خطأ في البيانات المدخلة. يرجى التحقق من البيانات والمحاولة مرة أخرى.",
-          "error"
-        );
-      } else {
-        showToast("حدث خطأ أثناء حفظ البيانات: " + error.message, "error");
-      }
+      alert("فشل في حفظ بيانات المستخدم: " + (error.message || "خطأ غير محدد"));
     }
   };
 
@@ -265,6 +195,60 @@ const UsersManagement = ({ onLogout }) => {
         return "";
     }
   };
+
+  // إذا كان هناك خطأ أو لا توجد بيانات
+  if (error) {
+    return (
+      <div className="users-management-container">
+        <Sidebar userName={userName} onLogout={onLogout} activePage="users" />
+        <div className="users-management-main">
+          <Header title="إدارة المشرفين والملاحظين" onRefresh={handleRefresh} />
+
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "center",
+              alignItems: "center",
+              height: "60vh",
+              padding: "20px",
+              textAlign: "center",
+            }}
+          >
+            <div style={{ fontSize: "4rem", marginBottom: "20px" }}>❌</div>
+            <h2 style={{ color: "#e74c3c", marginBottom: "10px" }}>
+              فشل في تحميل البيانات
+            </h2>
+            <p
+              style={{
+                color: "#7f8c8d",
+                marginBottom: "30px",
+                maxWidth: "500px",
+              }}
+            >
+              {error}
+            </p>
+            <button
+              onClick={handleRefresh}
+              disabled={isLoading}
+              style={{
+                padding: "12px 24px",
+                backgroundColor: isLoading ? "#95a5a6" : "#3498db",
+                color: "white",
+                border: "none",
+                borderRadius: "8px",
+                cursor: isLoading ? "not-allowed" : "pointer",
+                fontSize: "1rem",
+                fontWeight: "bold",
+              }}
+            >
+              {isLoading ? "جاري إعادة المحاولة..." : "إعادة المحاولة"}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="users-management-container">
@@ -331,26 +315,89 @@ const UsersManagement = ({ onLogout }) => {
           <div className="users-summary">
             <div className="summary-card">
               <h3>إجمالي المشرفين والملاحظين</h3>
-              <p className="summary-number">{statistics.total}</p>
+              <p className="summary-number">
+                {users.filter((user) => user.status !== "deleted").length}
+              </p>
             </div>
             <div className="summary-card">
               <h3>المشرفين</h3>
-              <p className="summary-number">{statistics.supervisors}</p>
+              <p className="summary-number">
+                {
+                  users.filter(
+                    (user) =>
+                      user.type === "supervisor" && user.status !== "deleted"
+                  ).length
+                }
+              </p>
             </div>
             <div className="summary-card">
               <h3>الملاحظين</h3>
-              <p className="summary-number">{statistics.observers}</p>
+              <p className="summary-number">
+                {
+                  users.filter(
+                    (user) =>
+                      user.type === "observer" && user.status !== "deleted"
+                  ).length
+                }
+              </p>
             </div>
             <div className="summary-card">
               <h3>موظفي الكلية</h3>
-              <p className="summary-number">{statistics.college_employees}</p>
+              <p className="summary-number">
+                {
+                  users.filter(
+                    (user) =>
+                      user.rank === "college_employee" &&
+                      user.status !== "deleted"
+                  ).length
+                }
+              </p>
             </div>
           </div>
 
           {isLoading ? (
-            <div className="loading-indicator">جاري تحميل البيانات...</div>
+            <div className="loading-indicator">
+              <div
+                style={{
+                  width: "40px",
+                  height: "40px",
+                  border: "4px solid #f3f3f3",
+                  borderTop: "4px solid #3498db",
+                  borderRadius: "50%",
+                  animation: "spin 1s linear infinite",
+                  margin: "0 auto 20px",
+                }}
+              ></div>
+              جاري تحميل البيانات...
+            </div>
           ) : filteredUsers.length === 0 ? (
-            <div className="no-results">لا توجد نتائج تطابق معايير البحث</div>
+            <div className="no-results">
+              {users.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "40px" }}>
+                  <div style={{ fontSize: "3rem", marginBottom: "20px" }}>
+                    📝
+                  </div>
+                  <h3>لا توجد بيانات</h3>
+                  <p>لم يتم إضافة أي مشرفين أو ملاحظين بعد.</p>
+                  <button
+                    onClick={handleAddUser}
+                    style={{
+                      marginTop: "20px",
+                      padding: "10px 20px",
+                      backgroundColor: "#27ae60",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "5px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    إضافة أول مشرف/ملاحظ
+                  </button>
+                </div>
+              ) : (
+                "لا توجد نتائج تطابق معايير البحث"
+              )}
+            </div>
           ) : (
             <div className="users-table-container">
               <table className="users-table">
@@ -392,9 +439,7 @@ const UsersManagement = ({ onLogout }) => {
                         </span>
                       </td>
                       <td>{user.consecutive_absence_days}</td>
-                      <td>
-                        {new Date(user.created_at).toLocaleDateString("ar-EG")}
-                      </td>
+                      <td>{user.created_at}</td>
                       <td>
                         <div className="action-buttons">
                           <button
@@ -443,21 +488,11 @@ const UsersManagement = ({ onLogout }) => {
         </div>
       </div>
 
-      {/* Modal */}
       {isModalOpen && (
         <UserFormModal
           user={currentUser}
           onClose={handleCloseModal}
           onSave={handleSaveUser}
-        />
-      )}
-
-      {/* Toast Notifications */}
-      {toast && (
-        <ToastNotification
-          message={toast.message}
-          type={toast.type}
-          onClose={() => setToast(null)}
         />
       )}
     </div>
@@ -478,7 +513,6 @@ const UserFormModal = ({ user, onClose, onSave }) => {
   });
 
   const [errors, setErrors] = useState({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -487,7 +521,6 @@ const UserFormModal = ({ user, onClose, onSave }) => {
       [name]: value,
     }));
 
-    // Clear error for this field
     if (errors[name]) {
       setErrors((prev) => ({
         ...prev,
@@ -522,7 +555,7 @@ const UserFormModal = ({ user, onClose, onSave }) => {
     return newErrors;
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
 
     const newErrors = validateForm();
@@ -532,17 +565,7 @@ const UserFormModal = ({ user, onClose, onSave }) => {
       return;
     }
 
-    setIsSubmitting(true);
-
-    try {
-      // إضافة معرف المستخدم للتحديث
-      const dataToSend = user ? { ...formData, id: user.id } : formData;
-      await onSave(dataToSend);
-    } catch (error) {
-      console.error("Error in form submission:", error);
-    } finally {
-      setIsSubmitting(false);
-    }
+    onSave(formData);
   };
 
   return (
@@ -550,11 +573,7 @@ const UserFormModal = ({ user, onClose, onSave }) => {
       <div className="modal-content">
         <div className="modal-header">
           <h2>{user ? "تعديل بيانات مشرف/ملاحظ" : "إضافة مشرف/ملاحظ جديد"}</h2>
-          <button
-            className="close-btn"
-            onClick={onClose}
-            disabled={isSubmitting}
-          >
+          <button className="close-btn" onClick={onClose}>
             &times;
           </button>
         </div>
@@ -570,7 +589,6 @@ const UserFormModal = ({ user, onClose, onSave }) => {
                 value={formData.name}
                 onChange={handleChange}
                 className={errors.name ? "error" : ""}
-                disabled={isSubmitting}
               />
               {errors.name && (
                 <span className="error-message">{errors.name}</span>
@@ -586,7 +604,6 @@ const UserFormModal = ({ user, onClose, onSave }) => {
                 value={formData.specialization}
                 onChange={handleChange}
                 className={errors.specialization ? "error" : ""}
-                disabled={isSubmitting}
               />
               {errors.specialization && (
                 <span className="error-message">{errors.specialization}</span>
@@ -605,7 +622,6 @@ const UserFormModal = ({ user, onClose, onSave }) => {
                 onChange={handleChange}
                 className={errors.phone ? "error" : ""}
                 dir="ltr"
-                disabled={isSubmitting}
               />
               {errors.phone && (
                 <span className="error-message">{errors.phone}</span>
@@ -622,7 +638,6 @@ const UserFormModal = ({ user, onClose, onSave }) => {
                 onChange={handleChange}
                 className={errors.whatsapp ? "error" : ""}
                 dir="ltr"
-                disabled={isSubmitting}
               />
               {errors.whatsapp && (
                 <span className="error-message">{errors.whatsapp}</span>
@@ -638,7 +653,6 @@ const UserFormModal = ({ user, onClose, onSave }) => {
                 name="type"
                 value={formData.type}
                 onChange={handleChange}
-                disabled={isSubmitting}
               >
                 <option value="supervisor">مشرف</option>
                 <option value="observer">ملاحظ</option>
@@ -652,7 +666,6 @@ const UserFormModal = ({ user, onClose, onSave }) => {
                 name="rank"
                 value={formData.rank}
                 onChange={handleChange}
-                disabled={isSubmitting}
               >
                 <option value="college_employee">موظف كلية</option>
                 <option value="external_employee">موظف خارجي</option>
@@ -669,7 +682,6 @@ const UserFormModal = ({ user, onClose, onSave }) => {
                   name="status"
                   value={formData.status}
                   onChange={handleChange}
-                  disabled={isSubmitting}
                 >
                   <option value="active">نشط</option>
                   <option value="suspended">معلق</option>
@@ -680,16 +692,11 @@ const UserFormModal = ({ user, onClose, onSave }) => {
           )}
 
           <div className="form-actions">
-            <button
-              type="button"
-              className="cancel-btn"
-              onClick={onClose}
-              disabled={isSubmitting}
-            >
+            <button type="button" className="cancel-btn" onClick={onClose}>
               إلغاء
             </button>
-            <button type="submit" className="save-btn" disabled={isSubmitting}>
-              {isSubmitting ? "جاري الحفظ..." : "حفظ"}
+            <button type="submit" className="save-btn">
+              حفظ
             </button>
           </div>
         </form>

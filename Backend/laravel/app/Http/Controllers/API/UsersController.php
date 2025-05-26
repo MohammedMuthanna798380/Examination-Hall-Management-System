@@ -267,6 +267,36 @@ class UsersController extends Controller
     }
 
     /**
+     * البحث في المستخدمين
+     */
+    public function search(Request $request)
+    {
+        try {
+            $query = $request->get('q', '');
+
+            $users = Users_s::where(function ($q) use ($query) {
+                $q->where('name', 'LIKE', "%{$query}%")
+                    ->orWhere('specialization', 'LIKE', "%{$query}%")
+                    ->orWhere('phone', 'LIKE', "%{$query}%");
+            })
+                ->where('status', '!=', 'deleted')
+                ->limit(20)
+                ->get();
+
+            return response()->json([
+                'status' => true,
+                'data' => $users
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => false,
+                'message' => 'حدث خطأ أثناء البحث',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * الحصول على إحصائيات المستخدمين
      */
     public function statistics()
@@ -294,6 +324,42 @@ class UsersController extends Controller
             return response()->json([
                 'status' => false,
                 'message' => 'حدث خطأ أثناء جلب الإحصائيات',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * تحديث حالة عدة مستخدمين
+     */
+    public function bulkUpdateStatus(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'userIds' => 'required|array',
+                'userIds.*' => 'exists:public.users_s,id',
+                'status' => 'required|in:active,suspended,deleted',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'خطأ في البيانات المدخلة',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            Users_s::whereIn('id', $request->userIds)
+                ->update(['status' => $request->status]);
+
+            return response()->json([
+                'status' => true,
+                'message' => 'تم تحديث حالة المستخدمين بنجاح'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => false,
+                'message' => 'حدث خطأ أثناء تحديث حالة المستخدمين',
                 'error' => $e->getMessage()
             ], 500);
         }
