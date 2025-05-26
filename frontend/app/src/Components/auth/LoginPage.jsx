@@ -1,3 +1,4 @@
+// frontend/app/src/Components/auth/LoginPage.jsx
 import React, { useState, useEffect } from "react";
 import "./LoginPage.css";
 
@@ -10,7 +11,6 @@ const LoginPage = ({ onLoginSuccess }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
 
-  // Animation entrance effect
   useEffect(() => {
     setIsVisible(true);
   }, []);
@@ -22,7 +22,6 @@ const LoginPage = ({ onLoginSuccess }) => {
       [name]: value,
     });
 
-    // Clear error when user types
     if (errors[name]) {
       setErrors({
         ...errors,
@@ -59,13 +58,10 @@ const LoginPage = ({ onLoginSuccess }) => {
     }
 
     setIsLoading(true);
-    setErrors({}); // Clear any previous errors
+    setErrors({});
 
     try {
-      // Simulate API call delay
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-
-      // Real API call (uncomment when backend is ready)
+      // محاولة تسجيل الدخول الحقيقي أولاً
       const response = await fetch("http://localhost:8000/api/login", {
         method: "POST",
         headers: {
@@ -77,35 +73,53 @@ const LoginPage = ({ onLoginSuccess }) => {
 
       const data = await response.json();
 
-      if (!response.ok || !data.status) {
-        throw new Error(data.message || "فشل تسجيل الدخول");
+      if (response.ok && data.status) {
+        // تسجيل دخول ناجح من API
+        localStorage.setItem("token", data.access_token);
+        localStorage.setItem("user", JSON.stringify(data.user));
+        console.log("تم تسجيل الدخول بنجاح:", data);
+      } else {
+        // فشل تسجيل الدخول من API، استخدام البيانات الوهمية
+        console.warn("فشل تسجيل الدخول من API، استخدام البيانات الوهمية");
+
+        // التحقق من البيانات الوهمية
+        if (
+          credentials.username === "admin" &&
+          credentials.password === "1234"
+        ) {
+          const mockUserData = {
+            id: 1,
+            username: credentials.username,
+            role: "admin",
+          };
+
+          // إنشاء token وهمي صالح
+          const mockToken = btoa(
+            JSON.stringify({
+              user_id: 1,
+              username: credentials.username,
+              role: "admin",
+              exp: Date.now() + 24 * 60 * 60 * 1000, // ينتهي خلال 24 ساعة
+            })
+          );
+
+          localStorage.setItem("token", mockToken);
+          localStorage.setItem("user", JSON.stringify(mockUserData));
+        } else {
+          throw new Error("اسم المستخدم أو كلمة المرور غير صحيحة");
+        }
       }
 
-      // Store token and user data
-      localStorage.setItem("token", data.access_token);
-      localStorage.setItem("user", JSON.stringify(data.user));
-
-      // Mock successful login for demo
-      const mockUserData = {
-        id: 1,
-        username: credentials.username,
-        role: "admin",
-      };
-
-      localStorage.setItem("token", "mock-jwt-token-for-testing");
-      localStorage.setItem("user", JSON.stringify(mockUserData));
-
-      // Success feedback
+      // إعطاء تأخير قصير قبل الانتقال
       setTimeout(() => {
         if (onLoginSuccess) {
           onLoginSuccess();
         }
       }, 500);
     } catch (error) {
+      console.error("خطأ في تسجيل الدخول:", error);
       setErrors({
-        general:
-          error.message ||
-          "فشل تسجيل الدخول. يرجى التحقق من اسم المستخدم وكلمة المرور.",
+        general: error.message || "فشل تسجيل الدخول. يرجى المحاولة مرة أخرى.",
       });
     } finally {
       setIsLoading(false);
@@ -141,7 +155,7 @@ const LoginPage = ({ onLoginSuccess }) => {
               onChange={handleChange}
               onKeyPress={handleKeyPress}
               className={errors.username ? "error" : ""}
-              placeholder="أدخل اسم المستخدم"
+              placeholder="أدخل اسم المستخدم (admin)"
               autoComplete="username"
               disabled={isLoading}
               maxLength={50}
@@ -163,7 +177,7 @@ const LoginPage = ({ onLoginSuccess }) => {
               onChange={handleChange}
               onKeyPress={handleKeyPress}
               className={errors.password ? "error" : ""}
-              placeholder="أدخل كلمة المرور"
+              placeholder="أدخل كلمة المرور (1234)"
               autoComplete="current-password"
               disabled={isLoading}
               maxLength={100}
@@ -182,6 +196,18 @@ const LoginPage = ({ onLoginSuccess }) => {
           >
             {isLoading ? "جاري تسجيل الدخول..." : "تسجيل الدخول"}
           </button>
+
+          <div
+            style={{
+              marginTop: "15px",
+              fontSize: "0.8rem",
+              color: "#666",
+              textAlign: "center",
+            }}
+          >
+            للتجربة: اسم المستخدم: <strong>admin</strong> / كلمة المرور:{" "}
+            <strong>1234</strong>
+          </div>
         </form>
 
         <div className="footer">

@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import Sidebar from "./Sidebar";
 import Header from "./Header";
+import ToastNotification from "../common/ToastNotification";
+import { usersService } from "../../services/usersService";
 import "./UsersManagement.css";
 
 const UsersManagement = ({ onLogout }) => {
@@ -14,6 +16,13 @@ const UsersManagement = ({ onLogout }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [userName, setUserName] = useState("");
+  const [toast, setToast] = useState(null);
+  const [statistics, setStatistics] = useState({
+    total: 0,
+    supervisors: 0,
+    observers: 0,
+    college_employees: 0,
+  });
 
   useEffect(() => {
     // Get user info from localStorage
@@ -25,128 +34,42 @@ const UsersManagement = ({ onLogout }) => {
   }, []);
 
   useEffect(() => {
-    // Apply filters and search
+    // Apply filters and search when data changes
     applyFiltersAndSearch();
   }, [users, searchTerm, filterType, filterStatus, filterRank]);
+
+  // دالة لعرض التنبيهات
+  const showToast = (message, type = "info") => {
+    setToast({ message, type });
+  };
 
   const fetchUsers = async () => {
     setIsLoading(true);
     try {
-      // In a real app, fetch from API
-      // For now, we'll use dummy data
-      await new Promise((resolve) => setTimeout(resolve, 500)); // Simulate API delay
+      // تحضير الفلاتر
+      const filters = {
+        type: filterType !== "all" ? filterType : undefined,
+        status: filterStatus !== "all" ? filterStatus : undefined,
+        rank: filterRank !== "all" ? filterRank : undefined,
+        search: searchTerm.trim() || undefined,
+      };
 
-      const dummyUsers = [
-        {
-          id: 1,
-          name: "أحمد محمد علي",
-          specialization: "هندسة كهربائية",
-          phone: "773123456",
-          whatsapp: "773123456",
-          type: "supervisor", // supervisor or observer
-          rank: "college_employee", // college_employee or external_employee
-          status: "active", // active, suspended, or deleted
-          consecutive_absence_days: 0,
-          last_absence_date: null,
-          created_at: "2023-01-15",
-        },
-        {
-          id: 2,
-          name: "خالد عبدالله سعيد",
-          specialization: "هندسة مدنية",
-          phone: "774567890",
-          whatsapp: "774567890",
-          type: "supervisor",
-          rank: "college_employee",
-          status: "active",
-          consecutive_absence_days: 1,
-          last_absence_date: "2023-05-10",
-          created_at: "2023-01-20",
-        },
-        {
-          id: 3,
-          name: "فاطمة أحمد حسن",
-          specialization: "هندسة ميكانيكية",
-          phone: "775678901",
-          whatsapp: "775678901",
-          type: "observer",
-          rank: "college_employee",
-          status: "active",
-          consecutive_absence_days: 0,
-          last_absence_date: null,
-          created_at: "2023-02-05",
-        },
-        {
-          id: 4,
-          name: "محمد سعيد ناصر",
-          specialization: "هندسة برمجيات",
-          phone: "776789012",
-          whatsapp: "776789012",
-          type: "observer",
-          rank: "external_employee",
-          status: "suspended",
-          consecutive_absence_days: 2,
-          last_absence_date: "2023-05-15",
-          created_at: "2023-02-10",
-        },
-        {
-          id: 5,
-          name: "سارة محمد قاسم",
-          specialization: "هندسة حاسوب",
-          phone: "777890123",
-          whatsapp: "777890123",
-          type: "observer",
-          rank: "external_employee",
-          status: "active",
-          consecutive_absence_days: 0,
-          last_absence_date: null,
-          created_at: "2023-02-15",
-        },
-        {
-          id: 6,
-          name: "عمر خالد محمد",
-          specialization: "هندسة كهربائية",
-          phone: "778901234",
-          whatsapp: "778901234",
-          type: "supervisor",
-          rank: "external_employee",
-          status: "deleted",
-          consecutive_absence_days: 0,
-          last_absence_date: null,
-          created_at: "2023-03-01",
-        },
-        {
-          id: 7,
-          name: "نور علي أحمد",
-          specialization: "هندسة مدنية",
-          phone: "779012345",
-          whatsapp: "779012345",
-          type: "observer",
-          rank: "college_employee",
-          status: "active",
-          consecutive_absence_days: 0,
-          last_absence_date: null,
-          created_at: "2023-03-10",
-        },
-        {
-          id: 8,
-          name: "صالح محمد علي",
-          specialization: "هندسة ميكانيكية",
-          phone: "770123456",
-          whatsapp: "770123456",
-          type: "supervisor",
-          rank: "college_employee",
-          status: "active",
-          consecutive_absence_days: 0,
-          last_absence_date: null,
-          created_at: "2023-03-15",
-        },
-      ];
+      // إزالة الفلاتر الفارغة
+      Object.keys(filters).forEach((key) => {
+        if (!filters[key]) {
+          delete filters[key];
+        }
+      });
 
-      setUsers(dummyUsers);
-      setFilteredUsers(dummyUsers);
+      const usersData = await usersService.getUsers(filters);
+      setUsers(usersData);
+
+      // جلب الإحصائيات
+      const stats = await usersService.getStatistics();
+      setStatistics(stats);
     } catch (error) {
       console.error("Error fetching users:", error);
+      showToast("حدث خطأ أثناء تحميل البيانات: " + error.message, "error");
     } finally {
       setIsLoading(false);
     }
@@ -173,12 +96,16 @@ const UsersManagement = ({ onLogout }) => {
     // Apply search
     if (searchTerm.trim() !== "") {
       const term = searchTerm.trim().toLowerCase();
-      result = result.filter(
-        (user) =>
-          user.name.toLowerCase().includes(term) ||
-          user.specialization.toLowerCase().includes(term) ||
-          user.phone.includes(term)
-      );
+      result = result.filter((user) => {
+        const name = user?.name?.toLowerCase() || "";
+        const specialization = user?.specialization?.toLowerCase() || "";
+        const phone = user?.phone || "";
+        return (
+          name.includes(term) ||
+          specialization.includes(term) ||
+          phone.includes(term)
+        );
+      });
     }
 
     setFilteredUsers(result);
@@ -214,60 +141,95 @@ const UsersManagement = ({ onLogout }) => {
     setIsModalOpen(true);
   };
 
-  const handleDeleteUser = (userId) => {
+  const handleDeleteUser = async (userId) => {
     if (window.confirm("هل أنت متأكد من رغبتك في حذف هذا المستخدم؟")) {
-      // In a real app, call delete API
-      // For now, we'll update the local state
-      const updatedUsers = users.map((user) =>
-        user.id === userId ? { ...user, status: "deleted" } : user
-      );
-      setUsers(updatedUsers);
+      try {
+        await usersService.deleteUser(userId);
+        // تحديث الحالة المحلية
+        const updatedUsers = users.map((user) =>
+          user.id === userId ? { ...user, status: "deleted" } : user
+        );
+        setUsers(updatedUsers);
+        showToast("تم حذف المستخدم بنجاح", "success");
+      } catch (error) {
+        console.error("Error deleting user:", error);
+        showToast("حدث خطأ أثناء حذف المستخدم: " + error.message, "error");
+      }
     }
   };
 
-  const handleSuspendUser = (userId) => {
+  const handleSuspendUser = async (userId) => {
     if (window.confirm("هل أنت متأكد من رغبتك في تعليق هذا المستخدم؟")) {
-      // In a real app, call suspend API
-      // For now, we'll update the local state
-      const updatedUsers = users.map((user) =>
-        user.id === userId ? { ...user, status: "suspended" } : user
-      );
-      setUsers(updatedUsers);
+      try {
+        await usersService.suspendUser(userId);
+        // تحديث الحالة المحلية
+        const updatedUsers = users.map((user) =>
+          user.id === userId ? { ...user, status: "suspended" } : user
+        );
+        setUsers(updatedUsers);
+        showToast("تم تعليق المستخدم بنجاح", "success");
+      } catch (error) {
+        console.error("Error suspending user:", error);
+        showToast("حدث خطأ أثناء تعليق المستخدم: " + error.message, "error");
+      }
     }
   };
 
-  const handleActivateUser = (userId) => {
-    // In a real app, call activate API
-    // For now, we'll update the local state
-    const updatedUsers = users.map((user) =>
-      user.id === userId ? { ...user, status: "active" } : user
-    );
-    setUsers(updatedUsers);
+  const handleActivateUser = async (userId) => {
+    try {
+      await usersService.activateUser(userId);
+      // تحديث الحالة المحلية
+      const updatedUsers = users.map((user) =>
+        user.id === userId ? { ...user, status: "active" } : user
+      );
+      setUsers(updatedUsers);
+      showToast("تم تنشيط المستخدم بنجاح", "success");
+    } catch (error) {
+      console.error("Error activating user:", error);
+      showToast("حدث خطأ أثناء تنشيط المستخدم: " + error.message, "error");
+    }
   };
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
   };
 
-  const handleSaveUser = (userData) => {
-    if (currentUser) {
-      // Edit existing user
-      const updatedUsers = users.map((user) =>
-        user.id === userData.id ? { ...userData } : user
-      );
-      setUsers(updatedUsers);
-    } else {
-      // Add new user
-      const newUser = {
-        ...userData,
-        id: users.length + 1, // In a real app, this would come from the server
-        consecutive_absence_days: 0,
-        last_absence_date: null,
-        created_at: new Date().toISOString().split("T")[0],
-      };
-      setUsers([...users, newUser]);
+  const handleSaveUser = async (userData) => {
+    try {
+      if (currentUser) {
+        // تحديث مستخدم موجود
+        const updatedUser = await usersService.updateUser(
+          userData.id,
+          userData
+        );
+        const updatedUsers = users.map((user) =>
+          user.id === userData.id ? updatedUser : user
+        );
+        setUsers(updatedUsers);
+        showToast("تم تحديث بيانات المستخدم بنجاح", "success");
+      } else {
+        // إضافة مستخدم جديد
+        const newUser = await usersService.createUser(userData);
+        setUsers([...users, newUser]);
+        showToast("تم إضافة المستخدم بنجاح", "success");
+      }
+      setIsModalOpen(false);
+
+      // إعادة تحميل البيانات للتأكد من التحديث
+      await fetchUsers();
+    } catch (error) {
+      console.error("Error saving user:", error);
+
+      // عرض رسائل الخطأ من الخادم
+      if (error.message && error.message.includes("errors")) {
+        showToast(
+          "خطأ في البيانات المدخلة. يرجى التحقق من البيانات والمحاولة مرة أخرى.",
+          "error"
+        );
+      } else {
+        showToast("حدث خطأ أثناء حفظ البيانات: " + error.message, "error");
+      }
     }
-    setIsModalOpen(false);
   };
 
   const translateType = (type) => {
@@ -369,43 +331,19 @@ const UsersManagement = ({ onLogout }) => {
           <div className="users-summary">
             <div className="summary-card">
               <h3>إجمالي المشرفين والملاحظين</h3>
-              <p className="summary-number">
-                {users.filter((user) => user.status !== "deleted").length}
-              </p>
+              <p className="summary-number">{statistics.total}</p>
             </div>
             <div className="summary-card">
               <h3>المشرفين</h3>
-              <p className="summary-number">
-                {
-                  users.filter(
-                    (user) =>
-                      user.type === "supervisor" && user.status !== "deleted"
-                  ).length
-                }
-              </p>
+              <p className="summary-number">{statistics.supervisors}</p>
             </div>
             <div className="summary-card">
               <h3>الملاحظين</h3>
-              <p className="summary-number">
-                {
-                  users.filter(
-                    (user) =>
-                      user.type === "observer" && user.status !== "deleted"
-                  ).length
-                }
-              </p>
+              <p className="summary-number">{statistics.observers}</p>
             </div>
             <div className="summary-card">
               <h3>موظفي الكلية</h3>
-              <p className="summary-number">
-                {
-                  users.filter(
-                    (user) =>
-                      user.rank === "college_employee" &&
-                      user.status !== "deleted"
-                  ).length
-                }
-              </p>
+              <p className="summary-number">{statistics.college_employees}</p>
             </div>
           </div>
 
@@ -454,7 +392,9 @@ const UsersManagement = ({ onLogout }) => {
                         </span>
                       </td>
                       <td>{user.consecutive_absence_days}</td>
-                      <td>{user.created_at}</td>
+                      <td>
+                        {new Date(user.created_at).toLocaleDateString("ar-EG")}
+                      </td>
                       <td>
                         <div className="action-buttons">
                           <button
@@ -503,11 +443,21 @@ const UsersManagement = ({ onLogout }) => {
         </div>
       </div>
 
+      {/* Modal */}
       {isModalOpen && (
         <UserFormModal
           user={currentUser}
           onClose={handleCloseModal}
           onSave={handleSaveUser}
+        />
+      )}
+
+      {/* Toast Notifications */}
+      {toast && (
+        <ToastNotification
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
         />
       )}
     </div>
@@ -528,6 +478,7 @@ const UserFormModal = ({ user, onClose, onSave }) => {
   });
 
   const [errors, setErrors] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -571,7 +522,7 @@ const UserFormModal = ({ user, onClose, onSave }) => {
     return newErrors;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     const newErrors = validateForm();
@@ -581,7 +532,17 @@ const UserFormModal = ({ user, onClose, onSave }) => {
       return;
     }
 
-    onSave(formData);
+    setIsSubmitting(true);
+
+    try {
+      // إضافة معرف المستخدم للتحديث
+      const dataToSend = user ? { ...formData, id: user.id } : formData;
+      await onSave(dataToSend);
+    } catch (error) {
+      console.error("Error in form submission:", error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -589,7 +550,11 @@ const UserFormModal = ({ user, onClose, onSave }) => {
       <div className="modal-content">
         <div className="modal-header">
           <h2>{user ? "تعديل بيانات مشرف/ملاحظ" : "إضافة مشرف/ملاحظ جديد"}</h2>
-          <button className="close-btn" onClick={onClose}>
+          <button
+            className="close-btn"
+            onClick={onClose}
+            disabled={isSubmitting}
+          >
             &times;
           </button>
         </div>
@@ -605,6 +570,7 @@ const UserFormModal = ({ user, onClose, onSave }) => {
                 value={formData.name}
                 onChange={handleChange}
                 className={errors.name ? "error" : ""}
+                disabled={isSubmitting}
               />
               {errors.name && (
                 <span className="error-message">{errors.name}</span>
@@ -620,6 +586,7 @@ const UserFormModal = ({ user, onClose, onSave }) => {
                 value={formData.specialization}
                 onChange={handleChange}
                 className={errors.specialization ? "error" : ""}
+                disabled={isSubmitting}
               />
               {errors.specialization && (
                 <span className="error-message">{errors.specialization}</span>
@@ -638,6 +605,7 @@ const UserFormModal = ({ user, onClose, onSave }) => {
                 onChange={handleChange}
                 className={errors.phone ? "error" : ""}
                 dir="ltr"
+                disabled={isSubmitting}
               />
               {errors.phone && (
                 <span className="error-message">{errors.phone}</span>
@@ -654,6 +622,7 @@ const UserFormModal = ({ user, onClose, onSave }) => {
                 onChange={handleChange}
                 className={errors.whatsapp ? "error" : ""}
                 dir="ltr"
+                disabled={isSubmitting}
               />
               {errors.whatsapp && (
                 <span className="error-message">{errors.whatsapp}</span>
@@ -669,6 +638,7 @@ const UserFormModal = ({ user, onClose, onSave }) => {
                 name="type"
                 value={formData.type}
                 onChange={handleChange}
+                disabled={isSubmitting}
               >
                 <option value="supervisor">مشرف</option>
                 <option value="observer">ملاحظ</option>
@@ -682,6 +652,7 @@ const UserFormModal = ({ user, onClose, onSave }) => {
                 name="rank"
                 value={formData.rank}
                 onChange={handleChange}
+                disabled={isSubmitting}
               >
                 <option value="college_employee">موظف كلية</option>
                 <option value="external_employee">موظف خارجي</option>
@@ -698,6 +669,7 @@ const UserFormModal = ({ user, onClose, onSave }) => {
                   name="status"
                   value={formData.status}
                   onChange={handleChange}
+                  disabled={isSubmitting}
                 >
                   <option value="active">نشط</option>
                   <option value="suspended">معلق</option>
@@ -708,11 +680,16 @@ const UserFormModal = ({ user, onClose, onSave }) => {
           )}
 
           <div className="form-actions">
-            <button type="button" className="cancel-btn" onClick={onClose}>
+            <button
+              type="button"
+              className="cancel-btn"
+              onClick={onClose}
+              disabled={isSubmitting}
+            >
               إلغاء
             </button>
-            <button type="submit" className="save-btn">
-              حفظ
+            <button type="submit" className="save-btn" disabled={isSubmitting}>
+              {isSubmitting ? "جاري الحفظ..." : "حفظ"}
             </button>
           </div>
         </form>

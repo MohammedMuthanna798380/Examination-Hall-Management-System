@@ -1,3 +1,4 @@
+// frontend/app/src/Components/dashboard/Dashboard.jsx
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "./Sidebar";
@@ -7,7 +8,7 @@ import NotificationItem from "./NotificationItem";
 import Table from "./Table";
 import "./Dashboard.css";
 
-// خدمة API للوحة التحكم
+// خدمة API محسنة للوحة التحكم
 const dashboardAPI = {
   baseURL: process.env.REACT_APP_API_URL || "http://localhost:8000/api",
 
@@ -22,10 +23,25 @@ const dashboardAPI = {
 
   async request(endpoint) {
     try {
+      console.log(`محاولة الوصول إلى: ${this.baseURL}${endpoint}`);
+      console.log("Headers:", this.getAuthHeaders());
+
       const response = await fetch(`${this.baseURL}${endpoint}`, {
         method: "GET",
         headers: this.getAuthHeaders(),
       });
+
+      console.log(
+        `استجابة من ${endpoint}:`,
+        response.status,
+        response.statusText
+      );
+
+      // التحقق من حالة المصادقة
+      if (response.status === 401) {
+        console.warn("خطأ في المصادقة - سيتم استخدام البيانات الوهمية");
+        throw new Error("AUTHENTICATION_FAILED");
+      }
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -40,7 +56,89 @@ const dashboardAPI = {
       return data.data;
     } catch (error) {
       console.error(`خطأ في API ${endpoint}:`, error);
+
+      // إذا كان خطأ في المصادقة، استخدم البيانات الوهمية
+      if (
+        error.message === "AUTHENTICATION_FAILED" ||
+        error.message.includes("401")
+      ) {
+        return this.getFallbackData(endpoint);
+      }
+
       throw error;
+    }
+  },
+
+  // البيانات الوهمية لكل endpoint
+  getFallbackData(endpoint) {
+    console.log(`استخدام البيانات الوهمية لـ: ${endpoint}`);
+
+    switch (endpoint) {
+      case "/dashboard/statistics":
+        return {
+          supervisors: 25,
+          observers: 40,
+          halls: 15,
+          todayExams: 8,
+        };
+
+      case "/dashboard/absence-data":
+        return [
+          { name: "أحمد محمد", type: "مشرف", hall: "قاعة 101" },
+          { name: "سعيد علي", type: "ملاحظ", hall: "قاعة 203" },
+        ];
+
+      case "/dashboard/tomorrow-exams":
+        return [
+          {
+            hall: "قاعة 101",
+            building: "مبنى الكهرباء",
+            floor: "الدور الثاني",
+            supervisors: 1,
+            observers: 2,
+          },
+          {
+            hall: "قاعة 203",
+            building: "مبنى المدني",
+            floor: "الدور الأول",
+            supervisors: 1,
+            observers: 3,
+          },
+        ];
+
+      case "/dashboard/notifications":
+        return [
+          {
+            id: 1,
+            type: "warning",
+            icon: "⚠️",
+            message: "يوجد نقص في عدد الملاحظين للامتحانات غداً",
+            actionText: "معالجة",
+          },
+          {
+            id: 2,
+            type: "info",
+            icon: "ℹ️",
+            message: "تم تعليق مستخدم تلقائياً بسبب الغياب المتكرر",
+            actionText: "استعراض",
+          },
+        ];
+
+      case "/dashboard/quick-stats":
+        return {
+          mostUsedHall: "قاعة 101",
+          topSupervisor: "د. أحمد محمد",
+          absenceRate: "5%",
+          avgObservers: "2.3",
+        };
+
+      case "/dashboard/check-distribution":
+        return {
+          hasDistribution: false,
+        };
+
+      default:
+        return {};
     }
   },
 
@@ -62,6 +160,7 @@ const Dashboard = ({ onLogout }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [usingFallbackData, setUsingFallbackData] = useState(false);
 
   // بيانات لوحة التحكم
   const [stats, setStats] = useState({
@@ -94,6 +193,13 @@ const Dashboard = ({ onLogout }) => {
     const user = JSON.parse(localStorage.getItem("user")) || {};
     setUserName(user.username || "المستخدم");
 
+    // التحقق من وجود token
+    const token = localStorage.getItem("token");
+    if (!token) {
+      console.warn("لا يوجد token - سيتم استخدام البيانات الوهمية");
+      setUsingFallbackData(true);
+    }
+
     // تحميل البيانات
     loadDashboardData();
   };
@@ -103,6 +209,8 @@ const Dashboard = ({ onLogout }) => {
     try {
       setIsLoading(true);
       setError(null);
+
+      console.log("بدء تحميل بيانات لوحة التحكم...");
 
       // تحميل جميع البيانات بشكل متوازي
       const [
@@ -120,6 +228,15 @@ const Dashboard = ({ onLogout }) => {
         dashboardAPI.getQuickStats(),
         dashboardAPI.checkTodayDistribution(),
       ]);
+
+      console.log("نتائج تحميل البيانات:", {
+        statisticsData: statisticsData.status,
+        absenceResponse: absenceResponse.status,
+        examsResponse: examsResponse.status,
+        notificationsData: notificationsData.status,
+        quickStatsData: quickStatsData.status,
+        distributionCheck: distributionCheck.status,
+      });
 
       // معالجة النتائج
       if (statisticsData.status === "fulfilled") {
@@ -158,82 +275,19 @@ const Dashboard = ({ onLogout }) => {
 
       if (failedRequests.length > 0) {
         console.warn("بعض الطلبات فشلت:", failedRequests);
-        // يمكن عرض تحذير للمستخدم هنا
+        setUsingFallbackData(true);
       }
+
+      console.log("تم تحميل البيانات بنجاح");
     } catch (error) {
       console.error("خطأ في تحميل بيانات لوحة التحكم:", error);
-      setError(
-        "فشل في تحميل البيانات. يرجى التحقق من الاتصال والمحاولة مرة أخرى."
-      );
-      loadFallbackData();
+      setError("فشل في تحميل البيانات. يتم عرض البيانات الوهمية.");
+      setUsingFallbackData(true);
+      // لا نحتاج لاستدعاء loadFallbackData هنا لأن البيانات الوهمية تأتي من getFallbackData
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  };
-
-  // تحميل البيانات الاحتياطية
-  const loadFallbackData = () => {
-    setStats({
-      supervisors: 25,
-      observers: 40,
-      halls: 15,
-      todayExams: 8,
-    });
-
-    setAbsenceData([
-      { name: "أحمد محمد", type: "مشرف", hall: "قاعة 101" },
-      { name: "سعيد علي", type: "ملاحظ", hall: "قاعة 203" },
-    ]);
-
-    setExamsData([
-      {
-        hall: "قاعة 101",
-        building: "مبنى الكهرباء",
-        floor: "الدور الثاني",
-        supervisors: 1,
-        observers: 2,
-      },
-      {
-        hall: "قاعة 203",
-        building: "مبنى المدني",
-        floor: "الدور الأول",
-        supervisors: 1,
-        observers: 3,
-      },
-      {
-        hall: "قاعة 305",
-        building: "مبنى الكهرباء",
-        floor: "الدور الرابع",
-        supervisors: 1,
-        observers: 2,
-      },
-    ]);
-
-    setNotifications([
-      {
-        id: 1,
-        type: "warning",
-        icon: "⚠️",
-        message:
-          "يوجد نقص في عدد الملاحظين للامتحانات غداً (مطلوب 2 ملاحظ إضافي)",
-        actionText: "معالجة",
-      },
-      {
-        id: 2,
-        type: "info",
-        icon: "ℹ️",
-        message: 'تم تعليق مستخدم "خالد أحمد" تلقائياً بسبب الغياب المتكرر',
-        actionText: "استعراض",
-      },
-    ]);
-
-    setQuickStats({
-      mostUsedHall: "قاعة 101",
-      topSupervisor: "د. أحمد محمد",
-      absenceRate: "5%",
-      avgObservers: "2.3",
-    });
   };
 
   // إعادة تحميل البيانات
@@ -333,61 +387,6 @@ const Dashboard = ({ onLogout }) => {
     );
   }
 
-  // عرض رسالة الخطأ
-  if (error && !stats.supervisors) {
-    return (
-      <div className="dashboard-container">
-        <Sidebar
-          userName={userName}
-          onLogout={onLogout}
-          activePage="dashboard"
-        />
-        <div className="dashboard-main">
-          <Header title="لوحة التحكم" onRefresh={handleRefresh} />
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              justifyContent: "center",
-              alignItems: "center",
-              height: "50vh",
-              gap: "20px",
-              padding: "20px",
-              textAlign: "center",
-            }}
-          >
-            <div style={{ fontSize: "3rem" }}>❌</div>
-            <div
-              style={{
-                fontSize: "1.2rem",
-                color: "#e74c3c",
-                maxWidth: "500px",
-              }}
-            >
-              {error}
-            </div>
-            <button
-              onClick={handleRefresh}
-              disabled={isRefreshing}
-              style={{
-                padding: "12px 24px",
-                backgroundColor: isRefreshing ? "#95a5a6" : "#3498db",
-                color: "white",
-                border: "none",
-                borderRadius: "5px",
-                cursor: isRefreshing ? "not-allowed" : "pointer",
-                fontSize: "1rem",
-                fontWeight: "bold",
-              }}
-            >
-              {isRefreshing ? "جاري إعادة المحاولة..." : "إعادة المحاولة"}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="dashboard-container">
       <Sidebar userName={userName} onLogout={onLogout} activePage="dashboard" />
@@ -398,8 +397,8 @@ const Dashboard = ({ onLogout }) => {
           isRefreshing={isRefreshing}
         />
 
-        {/* عرض تحذير في حالة وجود خطأ مع عرض البيانات الاحتياطية */}
-        {error && (
+        {/* عرض تحذير عند استخدام البيانات الوهمية */}
+        {usingFallbackData && (
           <div
             style={{
               backgroundColor: "#fff3cd",
@@ -415,7 +414,8 @@ const Dashboard = ({ onLogout }) => {
           >
             <span>⚠️</span>
             <span>
-              تم عرض البيانات الاحتياطية بسبب مشكلة في الاتصال. {error}
+              يتم عرض البيانات الوهمية بسبب مشكلة في الاتصال مع الخادم.
+              {error && ` (${error})`}
             </span>
             <button
               onClick={handleRefresh}

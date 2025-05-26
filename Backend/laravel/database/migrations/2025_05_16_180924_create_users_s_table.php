@@ -23,6 +23,11 @@ return new class extends Migration
             $table->integer('consecutive_absence_days')->default(0); // Consecutive absence days
             $table->date('last_absence_date')->nullable(); // Last absence date
             $table->timestamps();
+
+            // إضافة فهارس
+            $table->index(['type', 'status']);
+            $table->index(['rank', 'status']);
+            $table->index('status');
         });
     }
 
