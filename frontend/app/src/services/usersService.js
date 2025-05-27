@@ -22,16 +22,20 @@ const makeRequest = async (url, options = {}) => {
 
     try {
         const response = await fetch(`${API_BASE_URL}${url}`, defaultOptions);
-        const data = await response.json();
-
         if (!response.ok) {
-            throw new Error(data.message || 'حدث خطأ في الطلب');
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.message || `فشل في الاتصال: ${response.status}`);
+        }
+
+        const data = await response.json();
+        if (!data.status) {
+            throw new Error(data.message || 'فشل في معالجة الطلب');
         }
 
         return data;
     } catch (error) {
-        console.error('API Error:', error);
-        throw error;
+        console.error(`خطأ أثناء الطلب إلى ${url}:`, error);
+        throw new Error(error.message || 'حدث خطأ غير متوقع أثناء الاتصال بالخادم');
     }
 };
 
@@ -39,86 +43,102 @@ const makeRequest = async (url, options = {}) => {
 export const usersService = {
     // الحصول على قائمة المستخدمين
     getUsers: async (filters = {}) => {
-        const queryParams = new URLSearchParams();
+        try {
+            const queryParams = new URLSearchParams();
 
-        if (filters.type) queryParams.append('type', filters.type);
-        if (filters.status) queryParams.append('status', filters.status);
-        if (filters.rank) queryParams.append('rank', filters.rank);
-        if (filters.search) queryParams.append('search', filters.search);
+            if (filters.type) queryParams.append('type', filters.type);
+            if (filters.status) queryParams.append('status', filters.status);
+            if (filters.rank) queryParams.append('rank', filters.rank);
+            if (filters.search) queryParams.append('search', filters.search);
 
-        const url = `/users${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
-        const response = await makeRequest(url);
-        return response.data;
+            const url = `/users${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
+            const response = await makeRequest(url);
+
+            const users = response.data || [];
+
+            if (users.length === 0) {
+                throw new Error('لا توجد بيانات مستخدمين حالياً.');
+            }
+
+            return users;
+        } catch (error) {
+            console.error('خطأ في جلب المستخدمين:', error);
+            throw new Error(error.message || 'فشل في جلب قائمة المستخدمين');
+        }
     },
 
-    // إضافة مستخدم جديد
     createUser: async (userData) => {
-        const response = await makeRequest('/users', {
-            method: 'POST',
-            body: JSON.stringify(userData),
-        });
-        return response.data;
+        try {
+            const response = await makeRequest('/users', {
+                method: 'POST',
+                body: JSON.stringify(userData),
+            });
+            return response.data;
+        } catch (error) {
+            throw new Error(error.message || 'فشل في إضافة المستخدم');
+        }
     },
 
-    // الحصول على مستخدم محدد
     getUser: async (id) => {
-        const response = await makeRequest(`/users/${id}`);
-        return response.data;
+        try {
+            const response = await makeRequest(`/users/${id}`);
+            return response.data;
+        } catch (error) {
+            throw new Error(error.message || 'المستخدم غير موجود');
+        }
     },
 
-    // تحديث بيانات مستخدم
     updateUser: async (id, userData) => {
-        const response = await makeRequest(`/users/${id}`, {
-            method: 'PUT',
-            body: JSON.stringify(userData),
-        });
-        return response.data;
+        try {
+            const response = await makeRequest(`/users/${id}`, {
+                method: 'PUT',
+                body: JSON.stringify(userData),
+            });
+            return response.data;
+        } catch (error) {
+            throw new Error(error.message || 'فشل في تحديث بيانات المستخدم');
+        }
     },
 
-    // حذف مستخدم
     deleteUser: async (id) => {
-        const response = await makeRequest(`/users/${id}`, {
-            method: 'DELETE',
-        });
-        return response;
+        try {
+            const response = await makeRequest(`/users/${id}`, {
+                method: 'DELETE',
+            });
+            return response;
+        } catch (error) {
+            throw new Error(error.message || 'فشل في حذف المستخدم');
+        }
     },
 
-    // تعليق مستخدم
     suspendUser: async (id) => {
-        const response = await makeRequest(`/users/${id}/suspend`, {
-            method: 'PATCH',
-        });
-        return response;
+        try {
+            const response = await makeRequest(`/users/${id}/suspend`, {
+                method: 'PATCH',
+            });
+            return response;
+        } catch (error) {
+            throw new Error(error.message || 'فشل في تعليق المستخدم');
+        }
     },
 
-    // تنشيط مستخدم
     activateUser: async (id) => {
-        const response = await makeRequest(`/users/${id}/activate`, {
-            method: 'PATCH',
-        });
-        return response;
+        try {
+            const response = await makeRequest(`/users/${id}/activate`, {
+                method: 'PATCH',
+            });
+            return response;
+        } catch (error) {
+            throw new Error(error.message || 'فشل في تنشيط المستخدم');
+        }
     },
 
-    // الحصول على إحصائيات المستخدمين
     getStatistics: async () => {
-        const response = await makeRequest('/users/stats');
-        return response.data;
-    },
-
-    // البحث في المستخدمين
-    searchUsers: async (query) => {
-        const response = await makeRequest(`/users/search?q=${encodeURIComponent(query)}`);
-        return response.data;
-    },
-
-    // تحديث حالة عدة مستخدمين
-    bulkUpdateStatus: async (userIds, status) => {
-        const response = await makeRequest('/users/bulk-status', {
-            method: 'PATCH',
-            body: JSON.stringify({ userIds, status }),
-        });
-        return response;
-    },
+        try {
+            const response = await makeRequest('/users/stats');
+            return response.data;
+        } catch (error) {
+            throw new Error(error.message || 'فشل في جلب الإحصائيات');
+        }
+    }
 };
-
-export default usersService;
