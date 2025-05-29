@@ -8,6 +8,7 @@ import DailyAssignment from './Components/dashboard/DailyAssignment';
 import AbsenceReplacementManagement from './Components/dashboard/AbsenceReplacementManagement';
 import Reports from './Components/dashboard/Reports';
 import Settings from './Components/dashboard/Settings';
+import TestAPI from './Components/debug/TestAPI';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import './App.css';
 
@@ -115,7 +116,15 @@ function App() {
               <Navigate to="/login" replace />
           }
         />
+        {/* مسار الاختبار - يظهر فقط في بيئة التطوير */}
+        {process.env.NODE_ENV === 'development' && (
+          <Route
+            path="/test-api"
+            element={<TestAPI />}
+          />
+        )}
       </Routes>
+
     </Router>
   );
 }

@@ -5,6 +5,9 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\API\LoginController;
 use App\Http\Controllers\API\UsersController;
 use App\Http\Controllers\API\DashboardController;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Log;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -21,7 +24,157 @@ Route::post('/sample', function (Request $request) {
     ]);
 });
 
+// مسارات الاختبار - بدون حماية للتشخيص
+Route::get('/debug-info', function () {
+    try {
+        return response()->json([
+            'status' => true,
+            'message' => 'Laravel يعمل بشكل صحيح',
+            'php_version' => PHP_VERSION,
+            'laravel_version' => app()->version(),
+            'environment' => app()->environment(),
+            'debug_mode' => config('app.debug'),
+            'database_connection' => config('database.default'),
+            'current_time' => now()->toDateTimeString(),
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'status' => false,
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ], 500);
+    }
+});
+
+Route::post('/test-simple-post', function (Request $request) {
+    try {
+        return response()->json([
+            'status' => true,
+            'message' => 'POST request يعمل بشكل صحيح',
+            'data_received' => $request->all(),
+            'method' => $request->method(),
+            'headers' => $request->headers->all(),
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'status' => false,
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ], 500);
+    }
+});
+
+Route::post('/test-user-creation', function (Request $request) {
+    try {
+        // تسجيل البيانات الواردة
+        Log::info('=== اختبار إنشاء مستخدم ===');
+        Log::info('البيانات الواردة:', $request->all());
+
+        // التحقق من اتصال قاعدة البيانات
+        DB::connection()->getPdo();
+        Log::info('✅ اتصال قاعدة البيانات ناجح');
+
+        // التحقق من وجود الجدول
+        $tableExists = Schema::hasTable('public.users_s');
+        if (!$tableExists) {
+            throw new Exception('جدول users_s غير موجود');
+        }
+        Log::info('✅ جدول users_s موجود');
+
+        // محاولة إنشاء مستخدم باستخدام DB query builder
+        $userData = [
+            'name' => $request->input('name', 'اختبار'),
+            'specialization' => $request->input('specialization', 'اختبار'),
+            'phone' => $request->input('phone', '123456789'),
+            'whatsapp' => $request->input('whatsapp', '123456789'),
+            'type' => $request->input('type', 'observer'),
+            'rank' => $request->input('rank', 'external_employee'),
+            'status' => 'active',
+            'consecutive_absence_days' => 0,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ];
+
+        Log::info('محاولة إدخال البيانات:', $userData);
+
+        $userId = DB::table('public.users_s')->insertGetId($userData);
+
+        Log::info('✅ تم إنشاء المستخدم برقم: ' . $userId);
+
+        // جلب المستخدم المُنشأ
+        $createdUser = DB::table('public.users_s')->where('id', $userId)->first();
+
+        return response()->json([
+            'status' => true,
+            'message' => 'تم إنشاء المستخدم بنجاح عبر query builder',
+            'data' => $createdUser
+        ]);
+    } catch (\Exception $e) {
+        Log::error('❌ خطأ في اختبار إنشاء المستخدم:', [
+            'error' => $e->getMessage(),
+            'file' => $e->getFile(),
+            'line' => $e->getLine(),
+            'trace' => $e->getTraceAsString()
+        ]);
+
+        return response()->json([
+            'status' => false,
+            'message' => 'فشل في إنشاء المستخدم',
+            'error' => $e->getMessage(),
+            'debug_info' => [
+                'php_version' => PHP_VERSION,
+                'laravel_version' => app()->version(),
+                'database_connection' => config('database.default'),
+            ]
+        ], 500);
+    }
+});
+
+// اختبار Eloquent Model
+Route::post('/test-eloquent-user', function (Request $request) {
+    try {
+        Log::info('=== اختبار Eloquent Model ===');
+
+        $user = new \App\Models\Users_s();
+        $user->name = $request->input('name', 'اختبار eloquent');
+        $user->specialization = $request->input('specialization', 'اختبار');
+        $user->phone = $request->input('phone', '987654321');
+        $user->whatsapp = $request->input('whatsapp', '987654321');
+        $user->type = $request->input('type', 'observer');
+        $user->rank = $request->input('rank', 'external_employee');
+        $user->status = 'active';
+        $user->consecutive_absence_days = 0;
+
+        $user->save();
+
+        Log::info('✅ تم إنشاء المستخدم بالEloquent برقم: ' . $user->id);
+
+        return response()->json([
+            'status' => true,
+            'message' => 'تم إنشاء المستخدم بنجاح عبر Eloquent',
+            'data' => $user
+        ]);
+    } catch (\Exception $e) {
+        Log::error('❌ خطأ في اختبار Eloquent:', [
+            'error' => $e->getMessage(),
+            'file' => $e->getFile(),
+            'line' => $e->getLine()
+        ]);
+
+        return response()->json([
+            'status' => false,
+            'message' => 'فشل في إنشاء المستخدم بالEloquent',
+            'error' => $e->getMessage()
+        ], 500);
+    }
+});
+
+// مسار تسجيل الدخول - بدون حماية
 Route::post('/login', [LoginController::class, 'login']);
+
+// إضافة مسار اختبار المستخدمين بدون حماية للتشخيص
+Route::post('/test-users-unprotected', [UsersController::class, 'store']);
+Route::get('/test-users-list', [UsersController::class, 'index']);
 
 // مسارات تتطلب مصادقة
 Route::middleware('auth:sanctum')->group(function () {
@@ -37,7 +190,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/dashboard/quick-stats', [DashboardController::class, 'getQuickStats']);
     Route::get('/dashboard/check-distribution', [DashboardController::class, 'checkTodayDistribution']);
 
-    // مسارات إدارة المستخدمين
+    // مسارات إدارة المستخدمين المحمية
     Route::prefix('users')->group(function () {
         Route::get('/', [UsersController::class, 'index']);           // GET /api/users
         Route::post('/', [UsersController::class, 'store']);          // POST /api/users
@@ -52,4 +205,56 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/{id}/activate', [UsersController::class, 'activate']);  // PATCH /api/users/{id}/activate
         Route::patch('/bulk-status', [UsersController::class, 'bulkUpdateStatus']); // PATCH /api/users/bulk-status
     });
+});
+
+
+Route::get('/test-database', function () {
+    try {
+        // اختبار الاتصال الأساسي
+        $pdo = DB::connection()->getPdo();
+        $dbName = $pdo->query('SELECT current_database()')->fetchColumn();
+
+        // اختبار وجود الجدول
+        $tableExists = Schema::hasTable('public.users_s');
+
+        // عد المستخدمين الحاليين
+        $userCount = 0;
+        if ($tableExists) {
+            $userCount = DB::table('public.users_s')->count();
+        }
+
+        // جلب تفاصيل الجدول
+        $columns = [];
+        if ($tableExists) {
+            $columns = DB::select("
+                SELECT column_name, data_type, is_nullable, column_default
+                FROM information_schema.columns
+                WHERE table_name = 'users_s'
+                AND table_schema = 'public'
+                ORDER BY ordinal_position
+            ");
+        }
+
+        return response()->json([
+            'status' => true,
+            'message' => '✅ اتصال قاعدة البيانات ناجح',
+            'database_info' => [
+                'connection' => DB::connection()->getName(),
+                'database_name' => $dbName,
+                'driver' => DB::connection()->getDriverName(),
+            ],
+            'table_info' => [
+                'exists' => $tableExists,
+                'user_count' => $userCount,
+                'columns' => $columns
+            ]
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'status' => false,
+            'message' => '❌ فشل اختبار قاعدة البيانات',
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ], 500);
+    }
 });

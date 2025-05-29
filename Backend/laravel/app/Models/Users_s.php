@@ -23,6 +23,19 @@ class Users_s extends Model
         'last_absence_date'
     ];
 
+    protected $casts = [
+        'last_absence_date' => 'date',
+        'consecutive_absence_days' => 'integer',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+    ];
+
+    // إعدادات إضافية للتأكد من عمل الModel
+    protected $connection = 'pgsql'; // تأكيد استخدام PostgreSQL
+
+    // تعطيل timestamps إذا لم تكن موجودة في الجدول
+    public $timestamps = true;
+
     // العلاقة مع التوزيعات كمشرف
     public function supervisorAssignments()
     {
@@ -32,7 +45,7 @@ class Users_s extends Model
     // العلاقة مع التوزيعات كملاحظ
     public function observerAssignments()
     {
-        return $this->belongsToMany(Assignment::class, 'public.assignment_observer', 'user_id', 'assignment_id')
+        return $this->belongsToMany(Assignment::class, 'public.assignment_observer', 'users_s_id', 'assignment_id')
             ->withPivot('assignment_type')
             ->withTimestamps();
     }
@@ -65,5 +78,70 @@ class Users_s extends Model
     public function isCollegeEmployee()
     {
         return $this->rank === 'college_employee';
+    }
+
+    // دالة لتحديد ما إذا كان المستخدم نشط
+    public function isActive()
+    {
+        return $this->status === 'active';
+    }
+
+    // دالة لتحديد ما إذا كان المستخدم معلق
+    public function isSuspended()
+    {
+        return $this->status === 'suspended';
+    }
+
+    // دالة لتحديد ما إذا كان المستخدم محذوف
+    public function isDeleted()
+    {
+        return $this->status === 'deleted';
+    }
+
+    // Scopes للاستعلامات الشائعة
+    public function scopeActive($query)
+    {
+        return $query->where('status', 'active');
+    }
+
+    public function scopeSupervisors($query)
+    {
+        return $query->where('type', 'supervisor');
+    }
+
+    public function scopeObservers($query)
+    {
+        return $query->where('type', 'observer');
+    }
+
+    public function scopeCollegeEmployees($query)
+    {
+        return $query->where('rank', 'college_employee');
+    }
+
+    public function scopeExternalEmployees($query)
+    {
+        return $query->where('rank', 'external_employee');
+    }
+
+    // إضافة mutators للتأكد من تنظيف البيانات
+    public function setNameAttribute($value)
+    {
+        $this->attributes['name'] = trim($value);
+    }
+
+    public function setSpecializationAttribute($value)
+    {
+        $this->attributes['specialization'] = trim($value);
+    }
+
+    public function setPhoneAttribute($value)
+    {
+        $this->attributes['phone'] = trim($value);
+    }
+
+    public function setWhatsappAttribute($value)
+    {
+        $this->attributes['whatsapp'] = trim($value);
     }
 }
