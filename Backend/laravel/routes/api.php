@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\API\RoomsController;
 use App\Http\Controllers\API\ExamScheduleController;
+use App\Http\Controllers\API\DailyAssignmentController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -306,4 +307,39 @@ Route::prefix('test-exam-schedules')->group(function () {
     Route::get('/', [ExamScheduleController::class, 'index']);
     Route::post('/', [ExamScheduleController::class, 'store']);
     Route::get('/available-rooms', [ExamScheduleController::class, 'getAvailableRooms']);
+});
+
+
+// مسارات التوزيع اليومي - محمية بالمصادقة
+Route::middleware('auth:sanctum')->group(function () {
+
+    // مسارات التوزيع اليومي
+    Route::prefix('daily-assignments')->group(function () {
+        // تنفيذ التوزيع التلقائي
+        Route::post('/automatic', [DailyAssignmentController::class, 'performAutomaticAssignment']);
+
+        // الحصول على التوزيع حسب التاريخ والفترة
+        Route::get('/by-date', [DailyAssignmentController::class, 'getAssignmentByDate']);
+
+        // حفظ التوزيع النهائي
+        Route::post('/save', [DailyAssignmentController::class, 'saveAssignment']);
+
+        // حذف التوزيع
+        Route::delete('/delete', [DailyAssignmentController::class, 'deleteAssignment']);
+
+        // استبدال مشرف أو ملاحظ
+        Route::post('/replace-user', [DailyAssignmentController::class, 'replaceUser']);
+
+        // تسجيل غياب
+        Route::post('/record-absence', [DailyAssignmentController::class, 'recordAbsence']);
+
+        // الحصول على المتاحين للاستبدال
+        Route::get('/available-for-replacement', [DailyAssignmentController::class, 'getAvailableForReplacement']);
+    });
+});
+
+// للاختبار - مسارات غير محمية (يمكن حذفها لاحقاً)
+Route::prefix('test-daily-assignments')->group(function () {
+    Route::post('/automatic', [DailyAssignmentController::class, 'performAutomaticAssignment']);
+    Route::get('/by-date', [DailyAssignmentController::class, 'getAssignmentByDate']);
 });
