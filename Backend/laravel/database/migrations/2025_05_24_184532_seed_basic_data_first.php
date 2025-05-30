@@ -27,6 +27,14 @@ return new class extends Migration
             'updated_at' => now(),
         ]);
 
+        DB::table('system.user_admins')->insert([
+            'username' => 'admin',
+            'password' => Hash::make('admin123'),
+            'role' => 'admin',
+            'active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
         // 2. إدخال الترخيص
         $licenseId = DB::table('system.licenses')->insertGetId([
             'license_key' => 'EHMS-2024-TRIAL-001',
@@ -284,5 +292,6 @@ return new class extends Migration
         DB::table('system.settings')->truncate();
         DB::table('system.licenses')->truncate();
         DB::table('system.user_a')->truncate();
+        DB::table('system.user_admins')->truncate();
     }
 };

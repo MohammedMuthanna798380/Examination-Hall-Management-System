@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import Header from "./Header";
+import { roomsService } from "../../services/roomsService";
+import ToastNotification from "../common/ToastNotification";
 import "./RoomsManagement.css";
 
 const RoomsManagement = ({ onLogout }) => {
@@ -14,183 +16,148 @@ const RoomsManagement = ({ onLogout }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterBuilding, setFilterBuilding] = useState("all");
   const [filterFloor, setFilterFloor] = useState("all");
-  const [filterStatus, setFilterStatus] = useState("all"); // 'all', 'available', 'unavailable'
+  const [filterStatus, setFilterStatus] = useState("all");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentRoom, setCurrentRoom] = useState(null);
   const [userName, setUserName] = useState("");
-  const [selectedView, setSelectedView] = useState("table"); // 'table' or 'grid'
+  const [selectedView, setSelectedView] = useState("table");
+  const [error, setError] = useState(null);
+  const [toast, setToast] = useState(null);
 
   useEffect(() => {
-    // Get user info from localStorage
     const user = JSON.parse(localStorage.getItem("user")) || {};
     setUserName(user.username || "المستخدم");
 
-    // Fetch rooms, buildings, and floors from API
-    fetchData();
+    // بدء تحميل البيانات
+    initializeData();
   }, []);
 
   useEffect(() => {
-    // Apply filters and search
     applyFiltersAndSearch();
   }, [rooms, searchTerm, filterBuilding, filterFloor, filterStatus]);
 
-  const fetchData = async () => {
+  const showToast = (message, type = "info") => {
+    setToast({ message, type });
+  };
+
+  const closeToast = () => {
+    setToast(null);
+  };
+
+  const initializeData = async () => {
     setIsLoading(true);
+    setError(null);
+
     try {
-      // In a real app, fetch from API
-      // For now, we'll use dummy data
-      await new Promise((resolve) => setTimeout(resolve, 500)); // Simulate API delay
+      console.log("🔄 بدء تحميل البيانات الأولية...");
 
-      // Dummy buildings data
-      const dummyBuildings = [
-        { id: 1, name: "مبنى الكهرباء" },
-        { id: 2, name: "مبنى المدني" },
-      ];
+      // تحميل المباني والقاعات بشكل متوازي
+      const [buildingsData, roomsData] = await Promise.all([
+        roomsService.getBuildings(),
+        roomsService.getRooms(),
+      ]);
 
-      // Dummy floors data
-      const dummyFloors = [
-        { id: 1, building_id: 1, name: "الدور الأول" },
-        { id: 2, building_id: 1, name: "الدور الثاني" },
-        { id: 3, building_id: 1, name: "الدور الثالث" },
-        { id: 4, building_id: 1, name: "الدور الرابع" },
-        { id: 5, building_id: 2, name: "الدور الأول" },
-        { id: 6, building_id: 2, name: "الدور الثاني" },
-      ];
+      console.log("✅ تم تحميل البيانات بنجاح");
+      setBuildings(buildingsData);
+      setRooms(roomsData);
+      setFilteredRooms(roomsData);
 
-      // Dummy rooms data
-      const dummyRooms = [
-        {
-          id: 1,
-          name: "قاعة 101",
-          floor_id: 1,
-          building_id: 1,
-          floor_name: "الدور الأول",
-          building_name: "مبنى الكهرباء",
-          capacity: 50,
-          required_supervisors: 1,
-          required_observers: 2,
-          can_add_observer: true,
-          status: "available",
-          created_at: "2023-01-15",
-        },
-        {
-          id: 2,
-          name: "قاعة 102",
-          floor_id: 1,
-          building_id: 1,
-          floor_name: "الدور الأول",
-          building_name: "مبنى الكهرباء",
-          capacity: 40,
-          required_supervisors: 1,
-          required_observers: 2,
-          can_add_observer: false,
-          status: "available",
-          created_at: "2023-01-15",
-        },
-        {
-          id: 3,
-          name: "قاعة 201",
-          floor_id: 2,
-          building_id: 1,
-          floor_name: "الدور الثاني",
-          building_name: "مبنى الكهرباء",
-          capacity: 60,
-          required_supervisors: 1,
-          required_observers: 3,
-          can_add_observer: true,
-          status: "available",
-          created_at: "2023-01-20",
-        },
-        {
-          id: 4,
-          name: "قاعة 301",
-          floor_id: 3,
-          building_id: 1,
-          floor_name: "الدور الثالث",
-          building_name: "مبنى الكهرباء",
-          capacity: 30,
-          required_supervisors: 1,
-          required_observers: 1,
-          can_add_observer: true,
-          status: "unavailable",
-          created_at: "2023-02-05",
-        },
-        {
-          id: 5,
-          name: "قاعة 401",
-          floor_id: 4,
-          building_id: 1,
-          floor_name: "الدور الرابع",
-          building_name: "مبنى الكهرباء",
-          capacity: 70,
-          required_supervisors: 2,
-          required_observers: 3,
-          can_add_observer: true,
-          status: "available",
-          created_at: "2023-02-10",
-        },
-        {
-          id: 6,
-          name: "قاعة 101م",
-          floor_id: 5,
-          building_id: 2,
-          floor_name: "الدور الأول",
-          building_name: "مبنى المدني",
-          capacity: 45,
-          required_supervisors: 1,
-          required_observers: 2,
-          can_add_observer: true,
-          status: "available",
-          created_at: "2023-02-15",
-        },
-        {
-          id: 7,
-          name: "قاعة 201م",
-          floor_id: 6,
-          building_id: 2,
-          floor_name: "الدور الثاني",
-          building_name: "مبنى المدني",
-          capacity: 55,
-          required_supervisors: 1,
-          required_observers: 2,
-          can_add_observer: false,
-          status: "unavailable",
-          created_at: "2023-03-01",
-        },
-      ];
-
-      setBuildings(dummyBuildings);
-      setFloors(dummyFloors);
-      setRooms(dummyRooms);
-      setFilteredRooms(dummyRooms);
+      showToast("تم تحميل البيانات بنجاح", "success");
     } catch (error) {
-      console.error("Error fetching data:", error);
+      console.error("❌ خطأ في تحميل البيانات:", error);
+      setError(error.message || "فشل في تحميل البيانات من الخادم");
+      showToast("فشل في تحميل البيانات: " + error.message, "error");
+
+      // في حالة الفشل، استخدم البيانات الوهمية
+      loadFallbackData();
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadFallbackData = () => {
+    console.log("📋 استخدام البيانات الوهمية...");
+
+    const dummyBuildings = [
+      { id: 1, name: "مبنى الكهرباء" },
+      { id: 2, name: "مبنى المدني" },
+    ];
+
+    const dummyRooms = [
+      {
+        id: 1,
+        name: "قاعة 101",
+        floor_id: 1,
+        building_id: 1,
+        floor_name: "الدور الأول",
+        building_name: "مبنى الكهرباء",
+        capacity: 50,
+        required_supervisors: 1,
+        required_observers: 2,
+        can_add_observer: true,
+        status: "available",
+        created_at: "2023-01-15",
+      },
+      {
+        id: 2,
+        name: "قاعة 102",
+        floor_id: 1,
+        building_id: 1,
+        floor_name: "الدور الأول",
+        building_name: "مبنى الكهرباء",
+        capacity: 40,
+        required_supervisors: 1,
+        required_observers: 2,
+        can_add_observer: false,
+        status: "available",
+        created_at: "2023-01-15",
+      },
+    ];
+
+    setBuildings(dummyBuildings);
+    setRooms(dummyRooms);
+    setFilteredRooms(dummyRooms);
+  };
+
+  const fetchFloors = async (buildingId) => {
+    if (!buildingId || buildingId === "all") {
+      setFloors([]);
+      return;
+    }
+
+    try {
+      console.log(`🔄 جلب أدوار المبنى ${buildingId}...`);
+      const floorsData = await roomsService.getFloors(buildingId);
+      setFloors(floorsData);
+      console.log(`✅ تم جلب ${floorsData.length} دور`);
+    } catch (error) {
+      console.error("❌ خطأ في جلب الأدوار:", error);
+      showToast("فشل في جلب أدوار المبنى", "error");
+      setFloors([]);
     }
   };
 
   const applyFiltersAndSearch = () => {
     let result = [...rooms];
 
-    // Apply building filter
+    // تطبيق فلتر المبنى
     if (filterBuilding !== "all") {
       const buildingId = parseInt(filterBuilding);
       result = result.filter((room) => room.building_id === buildingId);
     }
 
-    // Apply floor filter
+    // تطبيق فلتر الدور
     if (filterFloor !== "all") {
       const floorId = parseInt(filterFloor);
       result = result.filter((room) => room.floor_id === floorId);
     }
 
-    // Apply status filter
+    // تطبيق فلتر الحالة
     if (filterStatus !== "all") {
       result = result.filter((room) => room.status === filterStatus);
     }
 
-    // Apply search
+    // تطبيق البحث
     if (searchTerm.trim() !== "") {
       const term = searchTerm.trim().toLowerCase();
       result = result.filter(
@@ -204,24 +171,21 @@ const RoomsManagement = ({ onLogout }) => {
     setFilteredRooms(result);
   };
 
-  const handleRefresh = () => {
-    fetchData();
+  const handleRefresh = async () => {
+    await initializeData();
   };
 
   const handleSearch = (e) => {
     setSearchTerm(e.target.value);
   };
 
-  const handleFilterBuilding = (e) => {
+  const handleFilterBuilding = async (e) => {
     const buildingId = e.target.value;
     setFilterBuilding(buildingId);
+    setFilterFloor("all"); // إعادة تعيين فلتر الدور
 
-    // Reset floor filter when building changes
-    if (buildingId === "all") {
-      setFilterFloor("all");
-    } else {
-      setFilterFloor("all");
-    }
+    // جلب أدوار المبنى الجديد
+    await fetchFloors(buildingId);
   };
 
   const handleFilterFloor = (e) => {
@@ -233,7 +197,7 @@ const RoomsManagement = ({ onLogout }) => {
   };
 
   const handleAddRoom = () => {
-    setCurrentRoom(null); // Reset current room for new room
+    setCurrentRoom(null);
     setIsModalOpen(true);
   };
 
@@ -242,25 +206,51 @@ const RoomsManagement = ({ onLogout }) => {
     setIsModalOpen(true);
   };
 
-  const handleToggleRoomStatus = (roomId) => {
-    // Toggle room status between available and unavailable
-    const updatedRooms = rooms.map((room) => {
-      if (room.id === roomId) {
-        const newStatus =
-          room.status === "available" ? "unavailable" : "available";
-        return { ...room, status: newStatus };
-      }
-      return room;
-    });
-    setRooms(updatedRooms);
+  const handleToggleRoomStatus = async (roomId) => {
+    try {
+      console.log(`🔄 تغيير حالة القاعة ${roomId}...`);
+
+      await roomsService.toggleRoomStatus(roomId);
+
+      // تحديث القائمة المحلية
+      const updatedRooms = rooms.map((room) => {
+        if (room.id === roomId) {
+          const newStatus =
+            room.status === "available" ? "unavailable" : "available";
+          return { ...room, status: newStatus };
+        }
+        return room;
+      });
+
+      setRooms(updatedRooms);
+      showToast("تم تغيير حالة القاعة بنجاح", "success");
+
+      console.log(`✅ تم تغيير حالة القاعة ${roomId} بنجاح`);
+    } catch (error) {
+      console.error(`❌ خطأ في تغيير حالة القاعة ${roomId}:`, error);
+      showToast("فشل في تغيير حالة القاعة: " + error.message, "error");
+    }
   };
 
-  const handleDeleteRoom = (roomId) => {
-    if (window.confirm("هل أنت متأكد من رغبتك في حذف هذه القاعة؟")) {
-      // In a real app, call delete API
-      // For now, we'll update the local state
+  const handleDeleteRoom = async (roomId) => {
+    if (!window.confirm("هل أنت متأكد من رغبتك في حذف هذه القاعة؟")) {
+      return;
+    }
+
+    try {
+      console.log(`🔄 حذف القاعة ${roomId}...`);
+
+      await roomsService.deleteRoom(roomId);
+
+      // إزالة القاعة من القائمة المحلية
       const updatedRooms = rooms.filter((room) => room.id !== roomId);
       setRooms(updatedRooms);
+
+      showToast("تم حذف القاعة بنجاح", "success");
+      console.log(`✅ تم حذف القاعة ${roomId} بنجاح`);
+    } catch (error) {
+      console.error(`❌ خطأ في حذف القاعة ${roomId}:`, error);
+      showToast("فشل في حذف القاعة: " + error.message, "error");
     }
   };
 
@@ -268,33 +258,40 @@ const RoomsManagement = ({ onLogout }) => {
     setIsModalOpen(false);
   };
 
-  const handleSaveRoom = (roomData) => {
-    if (currentRoom) {
-      // Edit existing room
-      const updatedRooms = rooms.map((room) =>
-        room.id === roomData.id ? { ...roomData } : room
-      );
-      setRooms(updatedRooms);
-    } else {
-      // Add new room
-      // In a real app, this would come from the server after saving
-      const buildingInfo = buildings.find(
-        (b) => b.id === parseInt(roomData.building_id)
-      );
-      const floorInfo = floors.find(
-        (f) => f.id === parseInt(roomData.floor_id)
-      );
+  const handleSaveRoom = async (roomData) => {
+    try {
+      let savedRoom;
 
-      const newRoom = {
-        ...roomData,
-        id: rooms.length + 1,
-        building_name: buildingInfo?.name || "",
-        floor_name: floorInfo?.name || "",
-        created_at: new Date().toISOString().split("T")[0],
-      };
-      setRooms([...rooms, newRoom]);
+      if (currentRoom) {
+        // تحديث قاعة موجودة
+        console.log(`🔄 تحديث القاعة ${currentRoom.id}...`);
+        savedRoom = await roomsService.updateRoom(currentRoom.id, roomData);
+
+        // تحديث القائمة المحلية
+        const updatedRooms = rooms.map((room) =>
+          room.id === currentRoom.id ? savedRoom : room
+        );
+        setRooms(updatedRooms);
+
+        showToast("تم تحديث القاعة بنجاح", "success");
+        console.log(`✅ تم تحديث القاعة ${currentRoom.id} بنجاح`);
+      } else {
+        // إنشاء قاعة جديدة
+        console.log("🔄 إنشاء قاعة جديدة...");
+        savedRoom = await roomsService.createRoom(roomData);
+
+        // إضافة القاعة للقائمة المحلية
+        setRooms([...rooms, savedRoom]);
+
+        showToast("تم إضافة القاعة بنجاح", "success");
+        console.log("✅ تم إنشاء القاعة بنجاح");
+      }
+
+      setIsModalOpen(false);
+    } catch (error) {
+      console.error("❌ خطأ في حفظ القاعة:", error);
+      showToast("فشل في حفظ القاعة: " + error.message, "error");
     }
-    setIsModalOpen(false);
   };
 
   const translateStatus = (status) => {
@@ -313,6 +310,68 @@ const RoomsManagement = ({ onLogout }) => {
     const buildingId = parseInt(filterBuilding);
     return floors.filter((floor) => floor.building_id === buildingId);
   };
+
+  // عرض شاشة الخطأ
+  if (error && rooms.length === 0) {
+    return (
+      <div className="rooms-management-container">
+        <Sidebar userName={userName} onLogout={onLogout} activePage="halls" />
+        <div className="rooms-management-main">
+          <Header title="إدارة القاعات" onRefresh={handleRefresh} />
+
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "center",
+              alignItems: "center",
+              height: "60vh",
+              padding: "20px",
+              textAlign: "center",
+            }}
+          >
+            <div style={{ fontSize: "4rem", marginBottom: "20px" }}>❌</div>
+            <h2 style={{ color: "#e74c3c", marginBottom: "10px" }}>
+              فشل في تحميل البيانات
+            </h2>
+            <p
+              style={{
+                color: "#7f8c8d",
+                marginBottom: "30px",
+                maxWidth: "500px",
+              }}
+            >
+              {error}
+            </p>
+            <button
+              onClick={handleRefresh}
+              disabled={isLoading}
+              style={{
+                padding: "12px 24px",
+                backgroundColor: isLoading ? "#95a5a6" : "#3498db",
+                color: "white",
+                border: "none",
+                borderRadius: "8px",
+                cursor: isLoading ? "not-allowed" : "pointer",
+                fontSize: "1rem",
+                fontWeight: "bold",
+              }}
+            >
+              {isLoading ? "جاري إعادة المحاولة..." : "إعادة المحاولة"}
+            </button>
+          </div>
+        </div>
+
+        {toast && (
+          <ToastNotification
+            message={toast.message}
+            type={toast.type}
+            onClose={closeToast}
+          />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="rooms-management-container">
@@ -426,9 +485,48 @@ const RoomsManagement = ({ onLogout }) => {
           </div>
 
           {isLoading ? (
-            <div className="loading-indicator">جاري تحميل البيانات...</div>
+            <div className="loading-indicator">
+              <div
+                style={{
+                  width: "40px",
+                  height: "40px",
+                  border: "4px solid #f3f3f3",
+                  borderTop: "4px solid #3498db",
+                  borderRadius: "50%",
+                  animation: "spin 1s linear infinite",
+                  margin: "0 auto 20px",
+                }}
+              ></div>
+              جاري تحميل البيانات...
+            </div>
           ) : filteredRooms.length === 0 ? (
-            <div className="no-results">لا توجد نتائج تطابق معايير البحث</div>
+            <div className="no-results">
+              {rooms.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "40px" }}>
+                  <div style={{ fontSize: "3rem", marginBottom: "20px" }}>
+                    🏢
+                  </div>
+                  <h3>لا توجد قاعات</h3>
+                  <p>لم يتم إضافة أي قاعات بعد.</p>
+                  <button
+                    onClick={handleAddRoom}
+                    style={{
+                      marginTop: "20px",
+                      padding: "10px 20px",
+                      backgroundColor: "#27ae60",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "5px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    إضافة أول قاعة
+                  </button>
+                </div>
+              ) : (
+                "لا توجد نتائج تطابق معايير البحث"
+              )}
+            </div>
           ) : selectedView === "table" ? (
             <div className="rooms-table-container">
               <table className="rooms-table">
@@ -597,14 +695,30 @@ const RoomsManagement = ({ onLogout }) => {
           floors={floors}
           onClose={handleCloseModal}
           onSave={handleSaveRoom}
+          onFetchFloors={fetchFloors}
+        />
+      )}
+
+      {toast && (
+        <ToastNotification
+          message={toast.message}
+          type={toast.type}
+          onClose={closeToast}
         />
       )}
     </div>
   );
 };
 
-// Room Form Modal Component
-const RoomFormModal = ({ room, buildings, floors, onClose, onSave }) => {
+// Room Form Modal Component - محدث للعمل مع API
+const RoomFormModal = ({
+  room,
+  buildings,
+  floors,
+  onClose,
+  onSave,
+  onFetchFloors,
+}) => {
   const [formData, setFormData] = useState({
     id: room ? room.id : null,
     name: room ? room.name : "",
@@ -623,32 +737,51 @@ const RoomFormModal = ({ room, buildings, floors, onClose, onSave }) => {
 
   const [errors, setErrors] = useState({});
   const [availableFloors, setAvailableFloors] = useState([]);
+  const [isLoadingFloors, setIsLoadingFloors] = useState(false);
 
-  // Update available floors when building changes
+  // تحميل الأدوار عند تغيير المبنى
   useEffect(() => {
     if (formData.building_id) {
-      const buildingId = parseInt(formData.building_id);
-      const filteredFloors = floors.filter(
-        (floor) => floor.building_id === buildingId
-      );
-      setAvailableFloors(filteredFloors);
-
-      // If current floor is not in the available floors, reset it
-      if (
-        formData.floor_id &&
-        !filteredFloors.some(
-          (floor) => floor.id === parseInt(formData.floor_id)
-        )
-      ) {
-        setFormData((prev) => ({
-          ...prev,
-          floor_id: filteredFloors.length > 0 ? filteredFloors[0].id : "",
-        }));
-      }
+      loadFloors(formData.building_id);
     } else {
       setAvailableFloors([]);
     }
-  }, [formData.building_id, floors]);
+  }, [formData.building_id]);
+
+  const loadFloors = async (buildingId) => {
+    if (!buildingId) return;
+
+    setIsLoadingFloors(true);
+    try {
+      const floorsData = await onFetchFloors(buildingId);
+      setAvailableFloors(
+        floorsData ||
+          floors.filter((f) => f.building_id === parseInt(buildingId))
+      );
+
+      // إذا كان الدور الحالي لا ينتمي للمبنى الجديد، إعادة تعيينه
+      if (formData.floor_id) {
+        const floorExists = (floorsData || floors).some(
+          (floor) =>
+            floor.id === parseInt(formData.floor_id) &&
+            floor.building_id === parseInt(buildingId)
+        );
+
+        if (!floorExists) {
+          setFormData((prev) => ({
+            ...prev,
+            floor_id:
+              floorsData && floorsData.length > 0 ? floorsData[0].id : "",
+          }));
+        }
+      }
+    } catch (error) {
+      console.error("خطأ في تحميل الأدوار:", error);
+      setAvailableFloors([]);
+    } finally {
+      setIsLoadingFloors(false);
+    }
+  };
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -658,7 +791,7 @@ const RoomFormModal = ({ room, buildings, floors, onClose, onSave }) => {
       [name]: type === "checkbox" ? checked : value,
     }));
 
-    // Clear error for this field
+    // مسح الخطأ لهذا الحقل
     if (errors[name]) {
       setErrors((prev) => ({
         ...prev,
@@ -686,6 +819,8 @@ const RoomFormModal = ({ room, buildings, floors, onClose, onSave }) => {
       newErrors.capacity = "السعة مطلوبة";
     } else if (isNaN(formData.capacity) || parseInt(formData.capacity) <= 0) {
       newErrors.capacity = "يجب أن تكون السعة رقماً موجباً";
+    } else if (parseInt(formData.capacity) > 1000) {
+      newErrors.capacity = "السعة كبيرة جداً (الحد الأقصى 1000)";
     }
 
     if (!formData.required_supervisors) {
@@ -695,6 +830,9 @@ const RoomFormModal = ({ room, buildings, floors, onClose, onSave }) => {
       parseInt(formData.required_supervisors) <= 0
     ) {
       newErrors.required_supervisors = "يجب أن يكون عدد المشرفين رقماً موجباً";
+    } else if (parseInt(formData.required_supervisors) > 10) {
+      newErrors.required_supervisors =
+        "عدد المشرفين كبير جداً (الحد الأقصى 10)";
     }
 
     if (!formData.required_observers) {
@@ -704,6 +842,8 @@ const RoomFormModal = ({ room, buildings, floors, onClose, onSave }) => {
       parseInt(formData.required_observers) <= 0
     ) {
       newErrors.required_observers = "يجب أن يكون عدد الملاحظين رقماً موجباً";
+    } else if (parseInt(formData.required_observers) > 20) {
+      newErrors.required_observers = "عدد الملاحظين كبير جداً (الحد الأقصى 20)";
     }
 
     return newErrors;
@@ -719,7 +859,7 @@ const RoomFormModal = ({ room, buildings, floors, onClose, onSave }) => {
       return;
     }
 
-    // Convert numeric fields to numbers
+    // تحويل الحقول الرقمية إلى أرقام
     const processedData = {
       ...formData,
       building_id: parseInt(formData.building_id),
@@ -753,6 +893,7 @@ const RoomFormModal = ({ room, buildings, floors, onClose, onSave }) => {
                 value={formData.name}
                 onChange={handleChange}
                 className={errors.name ? "error" : ""}
+                placeholder="مثال: قاعة 101"
               />
               {errors.name && (
                 <span className="error-message">{errors.name}</span>
@@ -768,7 +909,9 @@ const RoomFormModal = ({ room, buildings, floors, onClose, onSave }) => {
                 value={formData.capacity}
                 onChange={handleChange}
                 min="1"
+                max="1000"
                 className={errors.capacity ? "error" : ""}
+                placeholder="عدد الطلاب"
               />
               {errors.capacity && (
                 <span className="error-message">{errors.capacity}</span>
@@ -805,10 +948,12 @@ const RoomFormModal = ({ room, buildings, floors, onClose, onSave }) => {
                 name="floor_id"
                 value={formData.floor_id}
                 onChange={handleChange}
-                disabled={!formData.building_id}
+                disabled={!formData.building_id || isLoadingFloors}
                 className={errors.floor_id ? "error" : ""}
               >
-                <option value="">اختر الدور</option>
+                <option value="">
+                  {isLoadingFloors ? "جاري التحميل..." : "اختر الدور"}
+                </option>
                 {availableFloors.map((floor) => (
                   <option key={floor.id} value={floor.id}>
                     {floor.name}
@@ -833,6 +978,7 @@ const RoomFormModal = ({ room, buildings, floors, onClose, onSave }) => {
                 value={formData.required_supervisors}
                 onChange={handleChange}
                 min="1"
+                max="10"
                 className={errors.required_supervisors ? "error" : ""}
               />
               {errors.required_supervisors && (
@@ -853,6 +999,7 @@ const RoomFormModal = ({ room, buildings, floors, onClose, onSave }) => {
                 value={formData.required_observers}
                 onChange={handleChange}
                 min="1"
+                max="20"
                 className={errors.required_observers ? "error" : ""}
               />
               {errors.required_observers && (
@@ -896,8 +1043,12 @@ const RoomFormModal = ({ room, buildings, floors, onClose, onSave }) => {
             <button type="button" className="cancel-btn" onClick={onClose}>
               إلغاء
             </button>
-            <button type="submit" className="save-btn">
-              حفظ
+            <button
+              type="submit"
+              className="save-btn"
+              disabled={isLoadingFloors}
+            >
+              {isLoadingFloors ? "جاري التحميل..." : "حفظ"}
             </button>
           </div>
         </form>

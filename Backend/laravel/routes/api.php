@@ -8,6 +8,8 @@ use App\Http\Controllers\API\DashboardController;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Log;
+use App\Http\Controllers\API\RoomsController;
+use App\Http\Controllers\API\ExamScheduleController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -257,4 +259,51 @@ Route::get('/test-database', function () {
             'trace' => $e->getTraceAsString()
         ], 500);
     }
+});
+
+
+// مسارات غير محمية للاختبار
+Route::get('/test-rooms-list', [RoomsController::class, 'index']);
+Route::get('/test-buildings', [RoomsController::class, 'getBuildings']);
+Route::get('/test-floors/{buildingId}', [RoomsController::class, 'getFloors']);
+
+// مسارات محمية
+Route::middleware('auth:sanctum')->group(function () {
+    // مسارات إدارة القاعات
+    Route::prefix('rooms')->group(function () {
+        Route::get('/', [RoomsController::class, 'index']);              // GET /api/rooms
+        Route::post('/', [RoomsController::class, 'store']);             // POST /api/rooms
+        Route::get('/stats', [RoomsController::class, 'statistics']);    // GET /api/rooms/stats
+        Route::get('/{id}', [RoomsController::class, 'show']);           // GET /api/rooms/{id}
+        Route::put('/{id}', [RoomsController::class, 'update']);         // PUT /api/rooms/{id}
+        Route::delete('/{id}', [RoomsController::class, 'destroy']);     // DELETE /api/rooms/{id}
+        Route::patch('/{id}/toggle-status', [RoomsController::class, 'toggleStatus']); // PATCH /api/rooms/{id}/toggle-status
+    });
+
+    // مسارات المباني والأدوار
+    Route::prefix('buildings')->group(function () {
+        Route::get('/', [RoomsController::class, 'getBuildings']);       // GET /api/buildings
+        Route::get('/{id}/floors', [RoomsController::class, 'getFloors']); // GET /api/buildings/{id}/floors
+    });
+});
+
+Route::middleware('auth:sanctum')->group(function () {
+
+    // مسارات جداول الامتحانات
+    Route::prefix('exam-schedules')->group(function () {
+        Route::get('/', [ExamScheduleController::class, 'index']);                    // GET /api/exam-schedules
+        Route::post('/', [ExamScheduleController::class, 'store']);                   // POST /api/exam-schedules
+        Route::get('/statistics', [ExamScheduleController::class, 'getStatistics']); // GET /api/exam-schedules/statistics
+        Route::get('/available-rooms', [ExamScheduleController::class, 'getAvailableRooms']); // GET /api/exam-schedules/available-rooms
+        Route::get('/{id}', [ExamScheduleController::class, 'show']);                 // GET /api/exam-schedules/{id}
+        Route::put('/{id}', [ExamScheduleController::class, 'update']);               // PUT /api/exam-schedules/{id}
+        Route::delete('/{id}', [ExamScheduleController::class, 'destroy']);          // DELETE /api/exam-schedules/{id}
+    });
+});
+
+// للاختبار - مسارات غير محمية (يمكن حذفها لاحقاً)
+Route::prefix('test-exam-schedules')->group(function () {
+    Route::get('/', [ExamScheduleController::class, 'index']);
+    Route::post('/', [ExamScheduleController::class, 'store']);
+    Route::get('/available-rooms', [ExamScheduleController::class, 'getAvailableRooms']);
 });
