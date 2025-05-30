@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import Header from "./Header";
+import examScheduleService from "../../services/examScheduleService";
 import "./ExamSchedule.css";
 
 const ExamSchedule = ({ onLogout }) => {
@@ -11,234 +12,51 @@ const ExamSchedule = ({ onLogout }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterDate, setFilterDate] = useState("");
-  const [filterPeriod, setFilterPeriod] = useState("all"); // 'all', 'morning', 'evening'
-  const [selectedView, setSelectedView] = useState("table"); // 'table' or 'grid'
+  const [filterPeriod, setFilterPeriod] = useState("all");
+  const [selectedView, setSelectedView] = useState("table");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentSchedule, setCurrentSchedule] = useState(null);
   const [userName, setUserName] = useState("");
   const [rooms, setRooms] = useState([]);
   const [selectedRooms, setSelectedRooms] = useState([]);
+  const [statistics, setStatistics] = useState({
+    total_schedules: 0,
+    today_schedules: 0,
+    complete_distributions: 0,
+    incomplete_distributions: 0,
+  });
+  const [error, setError] = useState("");
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
-    // Get user info from localStorage
     const user = JSON.parse(localStorage.getItem("user")) || {};
     setUserName(user.username || "المستخدم");
-
-    // Fetch exam schedules and rooms from API
     fetchData();
   }, []);
 
   useEffect(() => {
-    // Apply filters and search
     applyFiltersAndSearch();
   }, [examSchedules, searchTerm, filterDate, filterPeriod]);
 
   const fetchData = async () => {
     setIsLoading(true);
+    setError("");
+
     try {
-      // In a real app, fetch from API
-      // For now, we'll use dummy data
-      await new Promise((resolve) => setTimeout(resolve, 500)); // Simulate API delay
+      // جلب جداول الامتحانات
+      const schedulesData = await examScheduleService.getExamSchedules();
+      setExamSchedules(schedulesData);
 
-      // Dummy rooms data
-      const dummyRooms = [
-        {
-          id: 1,
-          name: "قاعة 101",
-          building_name: "مبنى الكهرباء",
-          floor_name: "الدور الأول",
-          capacity: 50,
-          required_supervisors: 1,
-          required_observers: 2,
-          status: "available",
-        },
-        {
-          id: 2,
-          name: "قاعة 102",
-          building_name: "مبنى الكهرباء",
-          floor_name: "الدور الأول",
-          capacity: 40,
-          required_supervisors: 1,
-          required_observers: 2,
-          status: "available",
-        },
-        {
-          id: 3,
-          name: "قاعة 201",
-          building_name: "مبنى الكهرباء",
-          floor_name: "الدور الثاني",
-          capacity: 60,
-          required_supervisors: 1,
-          required_observers: 3,
-          status: "available",
-        },
-        {
-          id: 4,
-          name: "قاعة 301",
-          building_name: "مبنى الكهرباء",
-          floor_name: "الدور الثالث",
-          capacity: 30,
-          required_supervisors: 1,
-          required_observers: 1,
-          status: "unavailable",
-        },
-        {
-          id: 5,
-          name: "قاعة 401",
-          building_name: "مبنى الكهرباء",
-          floor_name: "الدور الرابع",
-          capacity: 70,
-          required_supervisors: 2,
-          required_observers: 3,
-          status: "available",
-        },
-        {
-          id: 6,
-          name: "قاعة 101م",
-          building_name: "مبنى المدني",
-          floor_name: "الدور الأول",
-          capacity: 45,
-          required_supervisors: 1,
-          required_observers: 2,
-          status: "available",
-        },
-        {
-          id: 7,
-          name: "قاعة 201م",
-          building_name: "مبنى المدني",
-          floor_name: "الدور الثاني",
-          capacity: 55,
-          required_supervisors: 1,
-          required_observers: 2,
-          status: "unavailable",
-        },
-      ];
+      // جلب القاعات المتاحة
+      const roomsData = await examScheduleService.getAvailableRooms();
+      setRooms(roomsData.rooms || []);
 
-      // Dummy exam schedules data
-      const today = new Date();
-      const tomorrow = new Date(today);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      const dayAfterTomorrow = new Date(today);
-      dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 2);
-
-      const formatDate = (date) => {
-        return date.toISOString().split("T")[0];
-      };
-
-      const dummyExamSchedules = [
-        {
-          id: 1,
-          date: formatDate(today),
-          period: "morning",
-          distribution_status: "complete",
-          rooms: [1, 2, 5],
-          rooms_data: [
-            {
-              id: 1,
-              name: "قاعة 101",
-              building_name: "مبنى الكهرباء",
-              floor_name: "الدور الأول",
-            },
-            {
-              id: 2,
-              name: "قاعة 102",
-              building_name: "مبنى الكهرباء",
-              floor_name: "الدور الأول",
-            },
-            {
-              id: 5,
-              name: "قاعة 401",
-              building_name: "مبنى الكهرباء",
-              floor_name: "الدور الرابع",
-            },
-          ],
-          created_at: "2023-05-01",
-        },
-        {
-          id: 2,
-          date: formatDate(today),
-          period: "evening",
-          distribution_status: "partial",
-          rooms: [3, 6],
-          rooms_data: [
-            {
-              id: 3,
-              name: "قاعة 201",
-              building_name: "مبنى الكهرباء",
-              floor_name: "الدور الثاني",
-            },
-            {
-              id: 6,
-              name: "قاعة 101م",
-              building_name: "مبنى المدني",
-              floor_name: "الدور الأول",
-            },
-          ],
-          created_at: "2023-05-01",
-        },
-        {
-          id: 3,
-          date: formatDate(tomorrow),
-          period: "morning",
-          distribution_status: "incomplete",
-          rooms: [1, 3, 5, 6],
-          rooms_data: [
-            {
-              id: 1,
-              name: "قاعة 101",
-              building_name: "مبنى الكهرباء",
-              floor_name: "الدور الأول",
-            },
-            {
-              id: 3,
-              name: "قاعة 201",
-              building_name: "مبنى الكهرباء",
-              floor_name: "الدور الثاني",
-            },
-            {
-              id: 5,
-              name: "قاعة 401",
-              building_name: "مبنى الكهرباء",
-              floor_name: "الدور الرابع",
-            },
-            {
-              id: 6,
-              name: "قاعة 101م",
-              building_name: "مبنى المدني",
-              floor_name: "الدور الأول",
-            },
-          ],
-          created_at: "2023-05-02",
-        },
-        {
-          id: 4,
-          date: formatDate(dayAfterTomorrow),
-          period: "morning",
-          distribution_status: "incomplete",
-          rooms: [2, 5],
-          rooms_data: [
-            {
-              id: 2,
-              name: "قاعة 102",
-              building_name: "مبنى الكهرباء",
-              floor_name: "الدور الأول",
-            },
-            {
-              id: 5,
-              name: "قاعة 401",
-              building_name: "مبنى الكهرباء",
-              floor_name: "الدور الرابع",
-            },
-          ],
-          created_at: "2023-05-03",
-        },
-      ];
-
-      setRooms(dummyRooms);
-      setExamSchedules(dummyExamSchedules);
-      setFilteredSchedules(dummyExamSchedules);
+      // جلب الإحصائيات
+      const statsData = await examScheduleService.getStatistics();
+      setStatistics(statsData);
     } catch (error) {
-      console.error("Error fetching data:", error);
+      console.error("خطأ في جلب البيانات:", error);
+      setError(error.message || "حدث خطأ أثناء جلب البيانات");
     } finally {
       setIsLoading(false);
     }
@@ -247,31 +65,26 @@ const ExamSchedule = ({ onLogout }) => {
   const applyFiltersAndSearch = () => {
     let result = [...examSchedules];
 
-    // Apply date filter
     if (filterDate) {
       result = result.filter((schedule) => schedule.date === filterDate);
     }
 
-    // Apply period filter
     if (filterPeriod !== "all") {
       result = result.filter((schedule) => schedule.period === filterPeriod);
     }
 
-    // Apply search (search in room names and other schedule properties)
     if (searchTerm.trim() !== "") {
       const term = searchTerm.trim().toLowerCase();
       result = result.filter((schedule) => {
-        // Search in rooms data
-        const roomsMatch = schedule.rooms_data.some(
-          (room) =>
-            room.name.toLowerCase().includes(term) ||
-            room.building_name.toLowerCase().includes(term) ||
-            room.floor_name.toLowerCase().includes(term)
-        );
-
-        // Search in date
+        const roomsMatch =
+          schedule.rooms_data &&
+          schedule.rooms_data.some(
+            (room) =>
+              room.name.toLowerCase().includes(term) ||
+              room.building_name.toLowerCase().includes(term) ||
+              room.floor_name.toLowerCase().includes(term)
+          );
         const dateMatch = schedule.date.includes(term);
-
         return roomsMatch || dateMatch;
       });
     }
@@ -279,8 +92,10 @@ const ExamSchedule = ({ onLogout }) => {
     setFilteredSchedules(result);
   };
 
-  const handleRefresh = () => {
-    fetchData();
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await fetchData();
+    setIsRefreshing(false);
   };
 
   const handleSearch = (e) => {
@@ -303,23 +118,22 @@ const ExamSchedule = ({ onLogout }) => {
 
   const handleEditSchedule = (schedule) => {
     setCurrentSchedule(schedule);
-    setSelectedRooms(schedule.rooms);
+    setSelectedRooms(schedule.rooms || []);
     setIsModalOpen(true);
   };
 
-  const handleDeleteSchedule = (scheduleId) => {
+  const handleDeleteSchedule = async (scheduleId) => {
     if (window.confirm("هل أنت متأكد من رغبتك في حذف هذا الجدول؟")) {
-      // In a real app, call delete API
-      // For now, we'll update the local state
-      const updatedSchedules = examSchedules.filter(
-        (schedule) => schedule.id !== scheduleId
-      );
-      setExamSchedules(updatedSchedules);
+      try {
+        await examScheduleService.deleteExamSchedule(scheduleId);
+        await fetchData();
+      } catch (error) {
+        alert("خطأ في حذف الجدول: " + error.message);
+      }
     }
   };
 
   const handleViewDistribution = (schedule) => {
-    // In a real app, navigate to distribution page with the schedule ID
     alert(
       `عرض توزيع الجدول رقم ${schedule.id} بتاريخ ${
         schedule.date
@@ -328,7 +142,6 @@ const ExamSchedule = ({ onLogout }) => {
   };
 
   const handleCreateDistribution = (schedule) => {
-    // In a real app, navigate to create distribution page with the schedule ID
     alert(
       `إنشاء توزيع للجدول رقم ${schedule.id} بتاريخ ${
         schedule.date
@@ -348,51 +161,32 @@ const ExamSchedule = ({ onLogout }) => {
     }
   };
 
-  const handleSaveSchedule = (scheduleData) => {
+  const handleSaveSchedule = async (scheduleData) => {
     if (selectedRooms.length === 0) {
       alert("يرجى اختيار قاعة واحدة على الأقل");
       return;
     }
 
-    const roomsData = selectedRooms.map((roomId) => {
-      const room = rooms.find((r) => r.id === roomId);
-      return {
-        id: room.id,
-        name: room.name,
-        building_name: room.building_name,
-        floor_name: room.floor_name,
-      };
-    });
-
-    if (currentSchedule) {
-      // Edit existing schedule
-      const updatedSchedules = examSchedules.map((schedule) =>
-        schedule.id === currentSchedule.id
-          ? {
-              ...schedule,
-              date: scheduleData.date,
-              period: scheduleData.period,
-              rooms: selectedRooms,
-              rooms_data: roomsData,
-              distribution_status: "incomplete", // Reset distribution status on edit
-            }
-          : schedule
-      );
-      setExamSchedules(updatedSchedules);
-    } else {
-      // Add new schedule
-      const newSchedule = {
-        id: examSchedules.length + 1, // In a real app, this would come from the server
-        date: scheduleData.date,
-        period: scheduleData.period,
+    try {
+      const dataToSend = {
+        ...scheduleData,
         rooms: selectedRooms,
-        rooms_data: roomsData,
-        distribution_status: "incomplete",
-        created_at: new Date().toISOString().split("T")[0],
       };
-      setExamSchedules([...examSchedules, newSchedule]);
+
+      if (currentSchedule) {
+        await examScheduleService.updateExamSchedule(
+          currentSchedule.id,
+          dataToSend
+        );
+      } else {
+        await examScheduleService.createExamSchedule(dataToSend);
+      }
+
+      setIsModalOpen(false);
+      await fetchData();
+    } catch (error) {
+      alert("خطأ في حفظ البيانات: " + error.message);
     }
-    setIsModalOpen(false);
   };
 
   const translatePeriod = (period) => {
@@ -442,13 +236,32 @@ const ExamSchedule = ({ onLogout }) => {
     return new Date(dateString).toLocaleDateString("ar-EG", options);
   };
 
+  if (isLoading) {
+    return (
+      <div className="exam-schedule-container">
+        <Sidebar userName={userName} onLogout={onLogout} activePage="exams" />
+        <div className="loading-indicator">
+          <div className="spinner"></div>
+          <p>جاري تحميل البيانات...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="exam-schedule-container">
       <Sidebar userName={userName} onLogout={onLogout} activePage="exams" />
       <div className="exam-schedule-main">
-        <Header title="جدول الامتحانات" onRefresh={handleRefresh} />
+        <Header
+          title="جدول الامتحانات"
+          onRefresh={handleRefresh}
+          isRefreshing={isRefreshing}
+        />
 
         <div className="exam-schedule-content">
+          {error && <div className="error-message general-error">{error}</div>}
+
+          {/* أدوات التحكم */}
           <div className="exam-schedule-controls">
             <div className="search-bar">
               <input
@@ -506,49 +319,32 @@ const ExamSchedule = ({ onLogout }) => {
             </button>
           </div>
 
+          {/* بطاقات الإحصائيات */}
           <div className="schedules-summary">
             <div className="summary-card">
               <h3>إجمالي الجداول</h3>
-              <p className="summary-number">{examSchedules.length}</p>
+              <p className="summary-number">{statistics.total_schedules}</p>
             </div>
             <div className="summary-card">
               <h3>جداول اليوم</h3>
-              <p className="summary-number">
-                {
-                  examSchedules.filter(
-                    (schedule) =>
-                      schedule.date === new Date().toISOString().split("T")[0]
-                  ).length
-                }
-              </p>
+              <p className="summary-number">{statistics.today_schedules}</p>
             </div>
             <div className="summary-card">
               <h3>توزيعات مكتملة</h3>
               <p className="summary-number">
-                {
-                  examSchedules.filter(
-                    (schedule) => schedule.distribution_status === "complete"
-                  ).length
-                }
+                {statistics.complete_distributions}
               </p>
             </div>
             <div className="summary-card">
               <h3>توزيعات غير مكتملة</h3>
               <p className="summary-number">
-                {
-                  examSchedules.filter(
-                    (schedule) =>
-                      schedule.distribution_status === "incomplete" ||
-                      schedule.distribution_status === "partial"
-                  ).length
-                }
+                {statistics.incomplete_distributions}
               </p>
             </div>
           </div>
 
-          {isLoading ? (
-            <div className="loading-indicator">جاري تحميل البيانات...</div>
-          ) : filteredSchedules.length === 0 ? (
+          {/* عرض النتائج */}
+          {filteredSchedules.length === 0 ? (
             <div className="no-results">لا توجد نتائج تطابق معايير البحث</div>
           ) : selectedView === "table" ? (
             <div className="schedules-table-container">
@@ -571,17 +367,18 @@ const ExamSchedule = ({ onLogout }) => {
                       <td>{translatePeriod(schedule.period)}</td>
                       <td>
                         <div className="rooms-list">
-                          {schedule.rooms_data.map((room, index) => (
-                            <span key={room.id} className="room-chip">
-                              {room.name}
-                              {index < schedule.rooms_data.length - 1
-                                ? "، "
-                                : ""}
-                            </span>
-                          ))}
+                          {schedule.rooms_data &&
+                            schedule.rooms_data.map((room, index) => (
+                              <span key={room.id} className="room-chip">
+                                {room.name}
+                                {index < schedule.rooms_data.length - 1
+                                  ? "، "
+                                  : ""}
+                              </span>
+                            ))}
                         </div>
                       </td>
-                      <td>{schedule.rooms.length}</td>
+                      <td>{schedule.rooms ? schedule.rooms.length : 0}</td>
                       <td>
                         <span
                           className={`status-badge ${getStatusClass(
@@ -663,14 +460,15 @@ const ExamSchedule = ({ onLogout }) => {
                     <div className="schedule-rooms-section">
                       <h4>القاعات المحددة:</h4>
                       <div className="rooms-grid">
-                        {schedule.rooms_data.map((room) => (
-                          <div key={room.id} className="room-item-small">
-                            <span className="room-name">{room.name}</span>
-                            <span className="room-location">
-                              {room.building_name} - {room.floor_name}
-                            </span>
-                          </div>
-                        ))}
+                        {schedule.rooms_data &&
+                          schedule.rooms_data.map((room) => (
+                            <div key={room.id} className="room-item-small">
+                              <span className="room-name">{room.name}</span>
+                              <span className="room-location">
+                                {room.building_name} - {room.floor_name}
+                              </span>
+                            </div>
+                          ))}
                       </div>
                     </div>
 
@@ -678,7 +476,7 @@ const ExamSchedule = ({ onLogout }) => {
                       <div className="schedule-detail-item">
                         <span className="detail-label">عدد القاعات:</span>
                         <span className="detail-value">
-                          {schedule.rooms.length}
+                          {schedule.rooms ? schedule.rooms.length : 0}
                         </span>
                       </div>
                       <div className="schedule-detail-item">
@@ -754,7 +552,7 @@ const ExamSchedule = ({ onLogout }) => {
   );
 };
 
-// Schedule Form Modal Component
+// Modal Component
 const ScheduleFormModal = ({
   schedule,
   rooms,
@@ -773,10 +571,8 @@ const ScheduleFormModal = ({
   const [filterFloor, setFilterFloor] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
 
-  // Get unique buildings from rooms
   const buildings = [...new Set(rooms.map((room) => room.building_name))];
 
-  // Get unique floors based on selected building
   const getFloors = () => {
     if (filterBuilding === "all") {
       return [...new Set(rooms.map((room) => room.floor_name))];
@@ -792,21 +588,13 @@ const ScheduleFormModal = ({
 
   const floors = getFloors();
 
-  // Filter rooms based on selected filters and search term
   const getFilteredRooms = () => {
     return rooms.filter((room) => {
-      // Only include available rooms
       if (room.status !== "available") return false;
-
-      // Apply building filter
       if (filterBuilding !== "all" && room.building_name !== filterBuilding)
         return false;
-
-      // Apply floor filter
       if (filterFloor !== "all" && room.floor_name !== filterFloor)
         return false;
-
-      // Apply search
       if (searchTerm) {
         const term = searchTerm.toLowerCase();
         return (
@@ -815,7 +603,6 @@ const ScheduleFormModal = ({
           room.floor_name.toLowerCase().includes(term)
         );
       }
-
       return true;
     });
   };
@@ -824,23 +611,15 @@ const ScheduleFormModal = ({
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData({
-      ...formData,
-      [name]: value,
-    });
-
-    // Clear error for this field
+    setFormData({ ...formData, [name]: value });
     if (errors[name]) {
-      setErrors({
-        ...errors,
-        [name]: "",
-      });
+      setErrors({ ...errors, [name]: "" });
     }
   };
 
   const handleBuildingFilter = (e) => {
     setFilterBuilding(e.target.value);
-    setFilterFloor("all"); // Reset floor filter when building changes
+    setFilterFloor("all");
   };
 
   const handleFloorFilter = (e) => {
@@ -853,35 +632,19 @@ const ScheduleFormModal = ({
 
   const validateForm = () => {
     const newErrors = {};
-
     if (!formData.date) {
       newErrors.date = "التاريخ مطلوب";
     }
-
-    // Check if there's an existing schedule for the same date and period
-    // This would typically be handled by the backend with a unique constraint
-    // For now, we'll simulate it here
-    // const existingSchedule = examSchedules.find(
-    //   s => s.date === formData.date && s.period === formData.period && (!schedule || s.id !== schedule.id)
-    // );
-
-    // if (existingSchedule) {
-    //   newErrors.general = "يوجد جدول امتحان بنفس التاريخ والفترة";
-    // }
-
     return newErrors;
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-
     const newErrors = validateForm();
-
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       return;
     }
-
     onSave(formData);
   };
 
@@ -889,16 +652,24 @@ const ScheduleFormModal = ({
     const availableRoomIds = rooms
       .filter((room) => room.status === "available")
       .map((room) => room.id);
-    onRoomSelection([...new Set([...selectedRooms, ...availableRoomIds])]);
+    availableRoomIds.forEach((roomId) => {
+      if (!selectedRooms.includes(roomId)) {
+        onRoomSelection(roomId);
+      }
+    });
   };
 
   const selectFilteredRooms = () => {
     const filteredRoomIds = filteredRooms.map((room) => room.id);
-    onRoomSelection([...new Set([...selectedRooms, ...filteredRoomIds])]);
+    filteredRoomIds.forEach((roomId) => {
+      if (!selectedRooms.includes(roomId)) {
+        onRoomSelection(roomId);
+      }
+    });
   };
 
   const clearRoomSelection = () => {
-    onRoomSelection([]);
+    selectedRooms.forEach((roomId) => onRoomSelection(roomId));
   };
 
   return (

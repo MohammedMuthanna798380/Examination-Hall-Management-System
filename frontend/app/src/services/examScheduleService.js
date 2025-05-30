@@ -24,10 +24,11 @@ const makeRequest = async (url, options = {}) => {
 
     try {
         console.log(`🔄 طلب ${options.method || 'GET'} إلى: ${API_BASE_URL}${url}`);
-        console.log('📤 البيانات المرسلة:', options.body ? JSON.parse(options.body) : 'لا توجد بيانات');
+        if (options.body) {
+            console.log('📤 البيانات المرسلة:', JSON.parse(options.body));
+        }
 
         const response = await fetch(`${API_BASE_URL}${url}`, defaultOptions);
-
         console.log(`📊 حالة الاستجابة: ${response.status} ${response.statusText}`);
 
         const contentType = response.headers.get('content-type');
@@ -99,12 +100,12 @@ export const examScheduleService = {
 
             const examSchedules = response.data || [];
 
-            // تنسيق التواريخ
+            // تنسيق التواريخ وإضافة خصائص إضافية
             const formattedSchedules = examSchedules.map(schedule => ({
                 ...schedule,
                 date: schedule.date,
                 created_at: schedule.created_at,
-                // إضافة معلومات إضافية
+                // إضافة معلومات إضافية للعرض
                 formatted_date: new Date(schedule.date).toLocaleDateString('ar-EG', {
                     weekday: 'long',
                     year: 'numeric',
@@ -112,7 +113,7 @@ export const examScheduleService = {
                     day: 'numeric',
                 }),
                 period_text: schedule.period === 'morning' ? 'صباحية' : 'مسائية',
-                status_text: this.translateStatus(schedule.distribution_status),
+                status_text: examScheduleService.translateStatus(schedule.distribution_status),
             }));
 
             console.log(`✅ تم جلب ${formattedSchedules.length} جدول امتحان`);
@@ -233,7 +234,7 @@ export const examScheduleService = {
 
             const rooms = response.data || [];
 
-            // تجميع القاعات حسب المبنى والدور
+            // تجميع القاعات حسب المبنى والدور للعرض المنظم
             const groupedRooms = rooms.reduce((acc, room) => {
                 const buildingName = room.building_name;
                 const floorName = room.floor_name;
@@ -273,6 +274,8 @@ export const examScheduleService = {
             throw new Error(error.message || 'فشل في جلب الإحصائيات');
         }
     },
+
+    // دوال المساعدة
 
     // ترجمة حالة التوزيع
     translateStatus: (status) => {
@@ -340,6 +343,19 @@ export const examScheduleService = {
             errors,
         };
     },
+
+    // اختبار الاتصال (للتطوير)
+    testConnection: async () => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/test-exam-schedules/available-rooms`);
+            const data = await response.json();
+            console.log('✅ اختبار الاتصال نجح:', data);
+            return data;
+        } catch (error) {
+            console.error('❌ فشل اختبار الاتصال:', error);
+            throw error;
+        }
+    }
 };
 
 export default examScheduleService;
