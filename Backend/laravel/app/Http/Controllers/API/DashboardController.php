@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Users_s;
 use App\Models\Room;
-use App\Models\Assignment;
+use App\Models\DailyAssignment;
 use App\Models\Notification;
 use App\Models\AbsenceReplacement;
 use Carbon\Carbon;
@@ -34,7 +34,7 @@ class DashboardController extends Controller
 
             // امتحانات اليوم
             $today = Carbon::today();
-            $todayExams = Assignment::where('date', $today)
+            $todayExams = DailyAssignment::where('date', $today)
                 ->distinct('room_id')
                 ->count('room_id');
 
@@ -97,13 +97,13 @@ class DashboardController extends Controller
         try {
             $tomorrow = Carbon::tomorrow();
 
-            $exams = Assignment::with(['room.floor.building'])
+            $exams = DailyAssignment::with(['room.floor.building'])
                 ->where('date', $tomorrow)
                 ->get()
                 ->groupBy('room_id')
-                ->map(function ($assignments, $roomId) {
-                    $assignment = $assignments->first();
-                    $room = $assignment->room;
+                ->map(function ($DailyAssignments, $roomId) {
+                    $DailyAssignment = $DailyAssignments->first();
+                    $room = $DailyAssignment->room;
 
                     return [
                         'hall' => $room->name,
@@ -186,24 +186,24 @@ class DashboardController extends Controller
     {
         try {
             // أكثر القاعات استخداماً
-            $mostUsedHall = Assignment::select('room_id', DB::raw('count(*) as usage_count'))
+            $mostUsedHall = DailyAssignment::select('room_id', DB::raw('count(*) as usage_count'))
                 ->with('room')
                 ->groupBy('room_id')
                 ->orderBy('usage_count', 'desc')
                 ->first();
 
             // المشرف الأكثر إشرافاً
-            $topSupervisor = Assignment::select('supervisor_id', DB::raw('count(*) as assignment_count'))
+            $topSupervisor = DailyAssignment::select('supervisor_id', DB::raw('count(*) as DailyAssignment_count'))
                 ->with('supervisor')
                 ->whereNotNull('supervisor_id')
                 ->groupBy('supervisor_id')
-                ->orderBy('assignment_count', 'desc')
+                ->orderBy('DailyAssignment_count', 'desc')
                 ->first();
 
             // نسبة الغياب
-            $totalAssignments = Assignment::count();
+            $totalDailyAssignments = DailyAssignment::count();
             $absenceCount = AbsenceReplacement::where('action_type', 'absence')->count();
-            $absenceRate = $totalAssignments > 0 ? round(($absenceCount / $totalAssignments) * 100, 1) : 0;
+            $absenceRate = $totalDailyAssignments > 0 ? round(($absenceCount / $totalDailyAssignments) * 100, 1) : 0;
 
             // متوسط عدد الملاحظين
             $avgObservers = Room::where('status', 'available')
@@ -235,7 +235,7 @@ class DashboardController extends Controller
         try {
             $today = Carbon::today();
 
-            $hasDistribution = Assignment::where('date', $today)->exists();
+            $hasDistribution = DailyAssignment::where('date', $today)->exists();
 
             return response()->json([
                 'status' => true,
