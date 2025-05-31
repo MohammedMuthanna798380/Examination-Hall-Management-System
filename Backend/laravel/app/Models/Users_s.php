@@ -37,16 +37,16 @@ class Users_s extends Model
     public $timestamps = true;
 
     // العلاقة مع التوزيعات كمشرف
-    public function supervisorAssignments()
+    public function supervisorDailyAssignments()
     {
-        return $this->hasMany(Assignment::class, 'supervisor_id');
+        return $this->hasMany(DailyAssignment::class, 'supervisor_id');
     }
 
     // العلاقة مع التوزيعات كملاحظ
-    public function observerAssignments()
+    public function observerDailyAssignments()
     {
-        return $this->belongsToMany(Assignment::class, 'public.assignment_observer', 'users_s_id', 'assignment_id')
-            ->withPivot('assignment_type')
+        return $this->belongsToMany(DailyAssignment::class, 'public.DailyAssignment_observer', 'users_s_id', 'DailyAssignment_id')
+            ->withPivot('DailyAssignment_type')
             ->withTimestamps();
     }
 

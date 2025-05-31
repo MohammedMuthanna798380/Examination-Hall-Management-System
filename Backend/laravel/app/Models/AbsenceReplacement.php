@@ -60,3 +60,14 @@ class AbsenceReplacement extends Model
         return $this->action_type === 'manual_replacement';
     }
 }
+
+// إضافة العلاقة المفقودة في Users_s Model
+// يجب إضافة هذا للملف Users_s.php:
+
+/*
+    // العلاقة مع الغيابات والاستبدالات (كمستخدم أصلي)
+    public function absences()
+    {
+        return $this->hasMany(AbsenceReplacement::class, 'original_user_id');
+    }
+*/

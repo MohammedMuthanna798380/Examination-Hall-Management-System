@@ -9,8 +9,10 @@ use App\Models\Room;
 use App\Models\DailyAssignment;
 use App\Models\Notification;
 use App\Models\AbsenceReplacement;
+use App\Models\ExamSchedule;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class DashboardController extends Controller
 {
@@ -34,7 +36,7 @@ class DashboardController extends Controller
 
             // امتحانات اليوم
             $today = Carbon::today();
-            $todayExams = DailyAssignment::where('date', $today)
+            $todayExams = DailyAssignment::where('assignment_date', $today)
                 ->distinct('room_id')
                 ->count('room_id');
 
@@ -48,10 +50,11 @@ class DashboardController extends Controller
                 ]
             ]);
         } catch (\Exception $e) {
+            Log::error('خطأ في جلب إحصائيات لوحة التحكم: ' . $e->getMessage());
             return response()->json([
                 'status' => false,
                 'message' => 'حدث خطأ أثناء جلب الإحصائيات',
-                'error' => $e->getMessage()
+                'error' => config('app.debug') ? $e->getMessage() : 'خطأ في الخادم'
             ], 500);
         }
     }
@@ -81,10 +84,11 @@ class DashboardController extends Controller
                 'data' => $absences
             ]);
         } catch (\Exception $e) {
+            Log::error('خطأ في جلب بيانات الغياب: ' . $e->getMessage());
             return response()->json([
                 'status' => false,
                 'message' => 'حدث خطأ أثناء جلب بيانات الغياب',
-                'error' => $e->getMessage()
+                'error' => config('app.debug') ? $e->getMessage() : 'خطأ في الخادم'
             ], 500);
         }
     }
@@ -97,33 +101,56 @@ class DashboardController extends Controller
         try {
             $tomorrow = Carbon::tomorrow();
 
-            $exams = DailyAssignment::with(['room.floor.building'])
+            // البحث في جداول الامتحانات أولاً
+            $examSchedules = ExamSchedule::with(['rooms.floor.building'])
                 ->where('date', $tomorrow)
-                ->get()
-                ->groupBy('room_id')
-                ->map(function ($DailyAssignments, $roomId) {
-                    $DailyAssignment = $DailyAssignments->first();
-                    $room = $DailyAssignment->room;
+                ->get();
 
-                    return [
-                        'hall' => $room->name,
-                        'building' => $room->floor->building->name,
-                        'floor' => $room->floor->name,
-                        'supervisors' => $room->required_supervisors,
-                        'observers' => $room->required_observers
-                    ];
-                })
-                ->values();
+            if ($examSchedules->isNotEmpty()) {
+                $exams = $examSchedules->flatMap(function ($schedule) {
+                    return $schedule->rooms->map(function ($room) use ($schedule) {
+                        return [
+                            'hall' => $room->name,
+                            'building' => $room->floor->building->name,
+                            'floor' => $room->floor->name,
+                            'period' => $schedule->period === 'morning' ? 'صباحية' : 'مسائية',
+                            'supervisors' => $room->required_supervisors,
+                            'observers' => $room->required_observers
+                        ];
+                    });
+                });
+            } else {
+                // البحث في التوزيعات اليومية
+                $exams = DailyAssignment::with(['room.floor.building'])
+                    ->where('assignment_date', $tomorrow)
+                    ->get()
+                    ->groupBy('room_id')
+                    ->map(function ($assignments, $roomId) {
+                        $assignment = $assignments->first();
+                        $room = $assignment->room;
+
+                        return [
+                            'hall' => $room->name,
+                            'building' => $room->floor->building->name,
+                            'floor' => $room->floor->name,
+                            'period' => $assignment->period === 'morning' ? 'صباحية' : 'مسائية',
+                            'supervisors' => $room->required_supervisors,
+                            'observers' => $room->required_observers
+                        ];
+                    })
+                    ->values();
+            }
 
             return response()->json([
                 'status' => true,
                 'data' => $exams
             ]);
         } catch (\Exception $e) {
+            Log::error('خطأ في جلب امتحانات الغد: ' . $e->getMessage());
             return response()->json([
                 'status' => false,
                 'message' => 'حدث خطأ أثناء جلب امتحانات الغد',
-                'error' => $e->getMessage()
+                'error' => config('app.debug') ? $e->getMessage() : 'خطأ في الخادم'
             ], 500);
         }
     }
@@ -137,6 +164,7 @@ class DashboardController extends Controller
             $notifications = Notification::with('room')
                 ->where('status', 'unresolved')
                 ->orderBy('created_at', 'desc')
+                ->limit(10) // تحديد عدد التنبيهات
                 ->get()
                 ->map(function ($notification) {
                     $type = $notification->deficiency_type === 'supervisor' ? 'مشرف' : 'ملاحظ';
@@ -153,6 +181,7 @@ class DashboardController extends Controller
             // إضافة تنبيهات المستخدمين المعلقين
             $suspendedUsers = Users_s::where('status', 'suspended')
                 ->where('consecutive_absence_days', '>=', 2)
+                ->limit(5) // تحديد عدد المستخدمين المعلقين
                 ->get()
                 ->map(function ($user) {
                     return [
@@ -171,10 +200,11 @@ class DashboardController extends Controller
                 'data' => $allNotifications
             ]);
         } catch (\Exception $e) {
+            Log::error('خطأ في جلب التنبيهات: ' . $e->getMessage());
             return response()->json([
                 'status' => false,
                 'message' => 'حدث خطأ أثناء جلب التنبيهات',
-                'error' => $e->getMessage()
+                'error' => config('app.debug') ? $e->getMessage() : 'خطأ في الخادم'
             ], 500);
         }
     }
@@ -193,17 +223,17 @@ class DashboardController extends Controller
                 ->first();
 
             // المشرف الأكثر إشرافاً
-            $topSupervisor = DailyAssignment::select('supervisor_id', DB::raw('count(*) as DailyAssignment_count'))
+            $topSupervisor = DailyAssignment::select('supervisor_id', DB::raw('count(*) as assignment_count'))
                 ->with('supervisor')
                 ->whereNotNull('supervisor_id')
                 ->groupBy('supervisor_id')
-                ->orderBy('DailyAssignment_count', 'desc')
+                ->orderBy('assignment_count', 'desc')
                 ->first();
 
             // نسبة الغياب
-            $totalDailyAssignments = DailyAssignment::count();
+            $totalAssignments = DailyAssignment::count();
             $absenceCount = AbsenceReplacement::where('action_type', 'absence')->count();
-            $absenceRate = $totalDailyAssignments > 0 ? round(($absenceCount / $totalDailyAssignments) * 100, 1) : 0;
+            $absenceRate = $totalAssignments > 0 ? round(($absenceCount / $totalAssignments) * 100, 1) : 0;
 
             // متوسط عدد الملاحظين
             $avgObservers = Room::where('status', 'available')
@@ -212,17 +242,18 @@ class DashboardController extends Controller
             return response()->json([
                 'status' => true,
                 'data' => [
-                    'mostUsedHall' => $mostUsedHall ? $mostUsedHall->room->name : 'غير محدد',
-                    'topSupervisor' => $topSupervisor ? $topSupervisor->supervisor->name : 'غير محدد',
+                    'mostUsedHall' => $mostUsedHall && $mostUsedHall->room ? $mostUsedHall->room->name : 'غير محدد',
+                    'topSupervisor' => $topSupervisor && $topSupervisor->supervisor ? $topSupervisor->supervisor->name : 'غير محدد',
                     'absenceRate' => $absenceRate . '%',
                     'avgObservers' => round($avgObservers, 1)
                 ]
             ]);
         } catch (\Exception $e) {
+            Log::error('خطأ في جلب الإحصائيات السريعة: ' . $e->getMessage());
             return response()->json([
                 'status' => false,
                 'message' => 'حدث خطأ أثناء جلب الإحصائيات السريعة',
-                'error' => $e->getMessage()
+                'error' => config('app.debug') ? $e->getMessage() : 'خطأ في الخادم'
             ], 500);
         }
     }
@@ -235,7 +266,7 @@ class DashboardController extends Controller
         try {
             $today = Carbon::today();
 
-            $hasDistribution = DailyAssignment::where('date', $today)->exists();
+            $hasDistribution = DailyAssignment::where('assignment_date', $today)->exists();
 
             return response()->json([
                 'status' => true,
@@ -244,10 +275,11 @@ class DashboardController extends Controller
                 ]
             ]);
         } catch (\Exception $e) {
+            Log::error('خطأ في التحقق من التوزيع: ' . $e->getMessage());
             return response()->json([
                 'status' => false,
                 'message' => 'حدث خطأ أثناء التحقق من التوزيع',
-                'error' => $e->getMessage()
+                'error' => config('app.debug') ? $e->getMessage() : 'خطأ في الخادم'
             ], 500);
         }
     }
