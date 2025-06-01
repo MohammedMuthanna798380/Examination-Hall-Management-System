@@ -12,6 +12,7 @@ use App\Http\Controllers\API\RoomsController;
 use App\Http\Controllers\API\ExamScheduleController;
 use App\Http\Controllers\API\DailyAssignmentController;
 use App\Http\Controllers\API\AbsenceReplacementController;
+use App\Http\Controllers\API\ReportsController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -374,4 +375,38 @@ Route::prefix('test-absence')->group(function () {
     Route::post('/auto-replace', [AbsenceReplacementController::class, 'autoReplace']);
     Route::get('/available-replacements', [AbsenceReplacementController::class, 'getAvailableReplacements']);
     Route::post('/manual-replace', [AbsenceReplacementController::class, 'manualReplace']);
+});
+
+Route::middleware('auth:sanctum')->group(function () {
+
+    // مسارات التقارير والإحصائيات
+    Route::prefix('reports')->group(function () {
+        // نظرة عامة على النظام
+        Route::get('/overview', [ReportsController::class, 'getOverview']);
+
+        // تقرير الحضور والغياب
+        Route::get('/attendance', [ReportsController::class, 'getAttendanceReport']);
+
+        // تقرير استخدام القاعات
+        Route::get('/hall-usage', [ReportsController::class, 'getHallUsageReport']);
+
+        // تقرير الاستبدالات
+        Route::get('/replacements', [ReportsController::class, 'getReplacementReport']);
+
+        // التقرير الشهري للتوزيع
+        Route::get('/monthly-distribution', [ReportsController::class, 'getMonthlyDistribution']);
+
+        // تصدير التقارير
+        Route::post('/export', [ReportsController::class, 'exportReport']);
+    });
+});
+
+// للاختبار - مسارات غير محمية (يمكن حذفها لاحقاً)
+Route::prefix('test-reports')->group(function () {
+    Route::get('/overview', [ReportsController::class, 'getOverview']);
+    Route::get('/attendance', [ReportsController::class, 'getAttendanceReport']);
+    Route::get('/hall-usage', [ReportsController::class, 'getHallUsageReport']);
+    Route::get('/replacements', [ReportsController::class, 'getReplacementReport']);
+    Route::get('/monthly-distribution', [ReportsController::class, 'getMonthlyDistribution']);
+    Route::post('/export', [ReportsController::class, 'exportReport']);
 });
