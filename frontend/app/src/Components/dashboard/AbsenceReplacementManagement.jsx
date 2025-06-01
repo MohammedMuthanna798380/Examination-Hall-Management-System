@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import Header from "./Header";
+import absenceReplacementService from "../../services/absenceReplacementService";
 import "./AbsenceReplacementManagement.css";
 
 const AbsenceReplacementManagement = ({ onLogout }) => {
@@ -11,339 +12,236 @@ const AbsenceReplacementManagement = ({ onLogout }) => {
     new Date().toISOString().split("T")[0]
   );
   const [selectedPeriod, setSelectedPeriod] = useState("morning");
-  const [activeTab, setActiveTab] = useState("supervisors"); // 'supervisors' or 'observers'
+  const [activeTab, setActiveTab] = useState("supervisors");
   const [assignmentData, setAssignmentData] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [replacementModal, setReplacementModal] = useState({
     isOpen: false,
-    type: null, // 'auto', 'manual'
+    type: null,
     originalUser: null,
+    assignment: null,
     availableReplacements: [],
-  });
-
-  // بيانات وهمية للتوزيع
-  const [dummyAssignments] = useState({
-    supervisors: [
-      {
-        id: 1,
-        hallName: "قاعة 101",
-        building: "مبنى الكهرباء",
-        floor: "الدور الأول",
-        supervisor: {
-          id: 1,
-          name: "د. أحمد محمد علي",
-          type: "supervisor",
-          rank: "college_employee",
-          phone: "773123456",
-          consecutiveAbsences: 0,
-        },
-        status: "assigned",
-      },
-      {
-        id: 2,
-        hallName: "قاعة 102",
-        building: "مبنى الكهرباء",
-        floor: "الدور الأول",
-        supervisor: {
-          id: 2,
-          name: "د. خالد عبدالله سعيد",
-          type: "supervisor",
-          rank: "college_employee",
-          phone: "774567890",
-          consecutiveAbsences: 1,
-        },
-        status: "assigned",
-      },
-      {
-        id: 3,
-        hallName: "قاعة 201",
-        building: "مبنى الكهرباء",
-        floor: "الدور الثاني",
-        supervisor: {
-          id: 3,
-          name: "م. محمد سعيد ناصر",
-          type: "supervisor",
-          rank: "external_employee",
-          phone: "776789012",
-          consecutiveAbsences: 0,
-        },
-        status: "assigned",
-      },
-      {
-        id: 4,
-        hallName: "قاعة 301",
-        building: "مبنى الكهرباء",
-        floor: "الدور الثالث",
-        supervisor: {
-          id: 4,
-          name: "م. عمر خالد محمد",
-          type: "supervisor",
-          rank: "external_employee",
-          phone: "778901234",
-          consecutiveAbsences: 2,
-        },
-        status: "absent",
-      },
-    ],
-    observers: [
-      {
-        id: 1,
-        hallName: "قاعة 101",
-        building: "مبنى الكهرباء",
-        floor: "الدور الأول",
-        observer: {
-          id: 5,
-          name: "أ. فاطمة أحمد حسن",
-          type: "observer",
-          rank: "college_employee",
-          phone: "775678901",
-          consecutiveAbsences: 0,
-        },
-        status: "assigned",
-      },
-      {
-        id: 2,
-        hallName: "قاعة 101",
-        building: "مبنى الكهرباء",
-        floor: "الدور الأول",
-        observer: {
-          id: 6,
-          name: "أ. سارة محمد قاسم",
-          type: "observer",
-          rank: "college_employee",
-          phone: "777890123",
-          consecutiveAbsences: 1,
-        },
-        status: "assigned",
-      },
-      {
-        id: 3,
-        hallName: "قاعة 102",
-        building: "مبنى الكهرباء",
-        floor: "الدور الأول",
-        observer: {
-          id: 7,
-          name: "أ. نور علي أحمد",
-          type: "observer",
-          rank: "external_employee",
-          phone: "779012345",
-          consecutiveAbsences: 0,
-        },
-        status: "assigned",
-      },
-      {
-        id: 4,
-        hallName: "قاعة 102",
-        building: "مبنى الكهرباء",
-        floor: "الدور الأول",
-        observer: {
-          id: 8,
-          name: "أ. زينب محمد علي",
-          type: "observer",
-          rank: "external_employee",
-          phone: "770123456",
-          consecutiveAbsences: 2,
-        },
-        status: "absent",
-      },
-    ],
-  });
-
-  // بيانات المشرفين والملاحظين المتاحين للاستبدال
-  const [availableUsers] = useState({
-    supervisors: [
-      {
-        id: 9,
-        name: "د. صالح محمد علي",
-        type: "supervisor",
-        rank: "college_employee",
-        phone: "771111111",
-        isAvailable: true,
-      },
-      {
-        id: 10,
-        name: "م. حسام أحمد قاسم",
-        type: "supervisor",
-        rank: "external_employee",
-        phone: "772222222",
-        isAvailable: true,
-      },
-    ],
-    observers: [
-      {
-        id: 11,
-        name: "أ. منى عبدالله حسن",
-        type: "observer",
-        rank: "college_employee",
-        phone: "773333333",
-        isAvailable: true,
-      },
-      {
-        id: 12,
-        name: "أ. ريم سعيد ناصر",
-        type: "observer",
-        rank: "external_employee",
-        phone: "774444444",
-        isAvailable: true,
-      },
-    ],
+    loading: false,
   });
 
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem("user")) || {};
     setUserName(user.username || "المستخدم");
-
     loadAssignmentData();
   }, [selectedDate, selectedPeriod]);
 
-  const loadAssignmentData = () => {
+  const loadAssignmentData = async () => {
     setIsLoading(true);
+    setError("");
 
-    setTimeout(() => {
-      setAssignmentData(dummyAssignments);
+    try {
+      console.log(
+        "جلب البيانات للتاريخ:",
+        selectedDate,
+        "الفترة:",
+        selectedPeriod
+      );
+
+      const data = await absenceReplacementService.getAssignments(
+        selectedDate,
+        selectedPeriod
+      );
+
+      setAssignmentData(data);
+      console.log("تم جلب البيانات بنجاح:", data);
+    } catch (error) {
+      console.error("خطأ في تحميل البيانات:", error);
+      setError(error.message || "حدث خطأ أثناء تحميل البيانات");
+      setAssignmentData({ supervisors: [], observers: [] });
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
-  const handleRefresh = () => {
-    loadAssignmentData();
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await loadAssignmentData();
+    setIsRefreshing(false);
   };
 
-  const handleAbsent = (assignment) => {
+  const handleAbsent = async (assignment) => {
     const userType = activeTab === "supervisors" ? "supervisor" : "observer";
     const user = assignment[userType];
 
     if (window.confirm(`هل أنت متأكد من تغييب ${user.name}؟`)) {
-      const updatedData = { ...assignmentData };
-      const targetArray = updatedData[activeTab];
-      const targetIndex = targetArray.findIndex((a) => a.id === assignment.id);
+      try {
+        const absenceData = {
+          assignment_id: assignment.assignment_id,
+          user_id: user.id,
+          user_type: userType,
+          reason: "غياب",
+        };
 
-      if (targetIndex !== -1) {
-        targetArray[targetIndex].status = "absent";
-        targetArray[targetIndex][userType].consecutiveAbsences += 1;
+        const result = await absenceReplacementService.recordAbsence(
+          absenceData
+        );
 
-        if (targetArray[targetIndex][userType].consecutiveAbsences >= 2) {
-          targetArray[targetIndex][userType].status = "suspended";
+        if (result.was_suspended) {
           alert(`تم تعليق ${user.name} تلقائياً بسبب الغياب المتكرر`);
         }
 
-        setAssignmentData(updatedData);
+        // إعادة تحميل البيانات
+        await loadAssignmentData();
+
+        alert(`تم تسجيل غياب ${user.name} بنجاح`);
+      } catch (error) {
+        console.error("خطأ في تسجيل الغياب:", error);
+        alert("خطأ في تسجيل الغياب: " + error.message);
       }
     }
   };
 
-  const handleAutoReplacement = (assignment) => {
+  const handleAutoReplacement = async (assignment) => {
     const userType = activeTab === "supervisors" ? "supervisor" : "observer";
     const user = assignment[userType];
 
-    const availableReplacements = availableUsers[activeTab].filter(
-      (u) => u.isAvailable && u.rank === user.rank
-    );
-
-    if (availableReplacements.length === 0) {
-      alert("لا يوجد مستخدمون متاحون للاستبدال التلقائي");
-      return;
-    }
-
-    const replacement = availableReplacements[0];
-
-    if (
-      window.confirm(
-        `هل تريد استبدال ${user.name} بـ ${replacement.name} تلقائياً؟`
-      )
-    ) {
-      const updatedData = { ...assignmentData };
-      const targetArray = updatedData[activeTab];
-      const targetIndex = targetArray.findIndex((a) => a.id === assignment.id);
-
-      if (targetIndex !== -1) {
-        targetArray[targetIndex][userType] = {
-          ...replacement,
-          consecutiveAbsences: 0,
+    if (window.confirm(`هل تريد البحث عن بديل تلقائي لـ ${user.name}؟`)) {
+      try {
+        const replacementData = {
+          assignment_id: assignment.assignment_id,
+          user_id: user.id,
+          user_type: userType,
         };
-        targetArray[targetIndex].status = "replaced";
-        targetArray[targetIndex].replacementType = "automatic";
-        targetArray[targetIndex].originalUser = user;
 
-        setAssignmentData(updatedData);
-        alert(`تم استبدال ${user.name} بـ ${replacement.name} بنجاح`);
+        const result = await absenceReplacementService.autoReplace(
+          replacementData
+        );
+
+        // إعادة تحميل البيانات
+        await loadAssignmentData();
+
+        alert(result.message);
+      } catch (error) {
+        console.error("خطأ في الاستبدال التلقائي:", error);
+        alert("خطأ في الاستبدال التلقائي: " + error.message);
       }
     }
   };
 
-  const handleManualReplacement = (assignment) => {
+  const handleManualReplacement = async (assignment) => {
     const userType = activeTab === "supervisors" ? "supervisor" : "observer";
     const user = assignment[userType];
 
-    setReplacementModal({
-      isOpen: true,
-      type: "manual",
-      originalUser: user,
-      assignment: assignment,
-      availableReplacements: availableUsers[activeTab].filter(
-        (u) => u.isAvailable
-      ),
-    });
+    try {
+      // جلب المتاحين للاستبدال
+      setReplacementModal((prev) => ({
+        ...prev,
+        loading: true,
+      }));
+
+      const availableReplacements =
+        await absenceReplacementService.getAvailableReplacements({
+          assignment_id: assignment.assignment_id,
+          user_type: userType,
+          date: selectedDate,
+          period: selectedPeriod,
+        });
+
+      setReplacementModal({
+        isOpen: true,
+        type: "manual",
+        originalUser: user,
+        assignment: assignment,
+        availableReplacements: availableReplacements,
+        loading: false,
+      });
+    } catch (error) {
+      console.error("خطأ في جلب المتاحين للاستبدال:", error);
+      alert("خطأ في جلب المتاحين للاستبدال: " + error.message);
+      setReplacementModal((prev) => ({
+        ...prev,
+        loading: false,
+      }));
+    }
   };
 
-  const confirmManualReplacement = (replacement) => {
+  const confirmManualReplacement = async (replacement) => {
     const { assignment, originalUser } = replacementModal;
     const userType = activeTab === "supervisors" ? "supervisor" : "observer";
 
-    const updatedData = { ...assignmentData };
-    const targetArray = updatedData[activeTab];
-    const targetIndex = targetArray.findIndex((a) => a.id === assignment.id);
-
-    if (targetIndex !== -1) {
-      targetArray[targetIndex][userType] = {
-        ...replacement,
-        consecutiveAbsences: 0,
+    try {
+      const replacementData = {
+        assignment_id: assignment.assignment_id,
+        original_user_id: originalUser.id,
+        replacement_user_id: replacement.id,
+        user_type: userType,
+        reason: "استبدال يدوي",
       };
-      targetArray[targetIndex].status = "replaced";
-      targetArray[targetIndex].replacementType = "manual";
-      targetArray[targetIndex].originalUser = originalUser;
 
-      setAssignmentData(updatedData);
+      const result = await absenceReplacementService.manualReplace(
+        replacementData
+      );
+
+      // إغلاق النافذة المنبثقة
       setReplacementModal({
         isOpen: false,
         type: null,
         originalUser: null,
+        assignment: null,
         availableReplacements: [],
+        loading: false,
       });
-      alert(`تم استبدال ${originalUser.name} بـ ${replacement.name} بنجاح`);
+
+      // إعادة تحميل البيانات
+      await loadAssignmentData();
+
+      alert(result.message);
+    } catch (error) {
+      console.error("خطأ في الاستبدال اليدوي:", error);
+      alert("خطأ في الاستبدال اليدوي: " + error.message);
     }
   };
 
-  const getStatusBadge = (assignment) => {
-    switch (assignment.status) {
-      case "assigned":
-        return <span className="status-badge status-assigned">معين</span>;
-      case "absent":
-        return <span className="status-badge status-absent">غائب</span>;
-      case "replaced":
-        return <span className="status-badge status-replaced">مستبدل</span>;
-      default:
-        return <span className="status-badge">{assignment.status}</span>;
-    }
+  const getStatusBadge = (status) => {
+    const statusText = absenceReplacementService.translateUserStatus(status);
+    const statusClass = `status-${status}`;
+
+    return <span className={`status-badge ${statusClass}`}>{statusText}</span>;
   };
 
   const formatDateForDisplay = (dateString) => {
-    return new Date(dateString).toLocaleDateString("ar-EG", {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
+    return absenceReplacementService.formatDateForDisplay(dateString);
   };
+
+  const getCurrentData = () => {
+    if (!assignmentData) return [];
+    return activeTab === "supervisors"
+      ? assignmentData.supervisors
+      : assignmentData.observers;
+  };
+
+  const currentData = getCurrentData();
+
+  // حساب الإحصائيات
+  const statistics = assignmentData
+    ? absenceReplacementService.calculateAbsenceStatistics(
+        assignmentData.supervisors,
+        assignmentData.observers
+      )
+    : null;
 
   return (
     <div className="absence-replacement-container">
       <Sidebar userName={userName} onLogout={onLogout} activePage="absences" />
 
       <div className="absence-replacement-main">
-        <Header title="إدارة الغياب والاستبدال" onRefresh={handleRefresh} />
+        <Header
+          title="إدارة الغياب والاستبدال"
+          onRefresh={handleRefresh}
+          isRefreshing={isRefreshing}
+        />
 
         <div className="absence-replacement-content">
+          {/* رسالة الخطأ */}
+          {error && <div className="error-message general-error">{error}</div>}
+
           {/* Controls Section */}
           <div className="absence-replacement-controls">
             <div className="date-period-controls">
@@ -370,8 +268,17 @@ const AbsenceReplacementManagement = ({ onLogout }) => {
 
             <div className="date-display">
               {formatDateForDisplay(selectedDate)} - الفترة{" "}
-              {selectedPeriod === "morning" ? "الصباحية" : "المسائية"}
+              {absenceReplacementService.translatePeriod(selectedPeriod)}
             </div>
+
+            {/* عرض الإحصائيات */}
+            {statistics && (
+              <div className="statistics-display">
+                <span>الحضور: {statistics.attendanceRate}%</span>
+                <span>الغياب: {statistics.absentRate}%</span>
+                <span>المجموع: {statistics.totalUsers}</span>
+              </div>
+            )}
           </div>
 
           {/* Tabs */}
@@ -384,6 +291,11 @@ const AbsenceReplacementManagement = ({ onLogout }) => {
                 }`}
               >
                 إدارة المشرفين
+                {assignmentData && (
+                  <span className="tab-count">
+                    ({assignmentData.supervisors.length})
+                  </span>
+                )}
               </button>
               <button
                 onClick={() => setActiveTab("observers")}
@@ -392,14 +304,26 @@ const AbsenceReplacementManagement = ({ onLogout }) => {
                 }`}
               >
                 إدارة الملاحظين
+                {assignmentData && (
+                  <span className="tab-count">
+                    ({assignmentData.observers.length})
+                  </span>
+                )}
               </button>
             </div>
 
             {/* Content */}
             <div className="tab-content">
               {isLoading ? (
-                <div className="loading-indicator">جاري تحميل البيانات...</div>
-              ) : assignmentData && assignmentData[activeTab] ? (
+                <div className="loading-indicator">
+                  <div className="spinner"></div>
+                  جاري تحميل البيانات...
+                </div>
+              ) : currentData.length === 0 ? (
+                <div className="no-data">
+                  لا توجد بيانات توزيع لهذا التاريخ والفترة
+                </div>
+              ) : (
                 <div className="table-container">
                   <table className="assignments-table">
                     <thead>
@@ -409,6 +333,7 @@ const AbsenceReplacementManagement = ({ onLogout }) => {
                         <th>
                           {activeTab === "supervisors" ? "المشرف" : "الملاحظ"}
                         </th>
+                        <th>الرتبة</th>
                         <th>رقم الهاتف</th>
                         <th>أيام الغياب</th>
                         <th>الحالة</th>
@@ -416,7 +341,7 @@ const AbsenceReplacementManagement = ({ onLogout }) => {
                       </tr>
                     </thead>
                     <tbody>
-                      {assignmentData[activeTab].map((assignment) => {
+                      {currentData.map((assignment) => {
                         const userType =
                           activeTab === "supervisors"
                             ? "supervisor"
@@ -442,12 +367,27 @@ const AbsenceReplacementManagement = ({ onLogout }) => {
                             <td>
                               <div className="user-info">
                                 <div>{user.name}</div>
-                                {assignment.originalUser && (
+                                {assignment.replacementInfo && (
                                   <div className="replacement-info">
-                                    (بدلاً من: {assignment.originalUser.name})
+                                    (بدلاً من:{" "}
+                                    {
+                                      assignment.replacementInfo
+                                        .replacement_name
+                                    }
+                                    )
+                                    <br />
+                                    <small>
+                                      نوع الاستبدال:{" "}
+                                      {assignment.replacementInfo.type}
+                                    </small>
                                   </div>
                                 )}
                               </div>
+                            </td>
+                            <td>
+                              {absenceReplacementService.translateUserRank(
+                                user.rank
+                              )}
                             </td>
                             <td className="phone-number">{user.phone}</td>
                             <td>
@@ -461,14 +401,14 @@ const AbsenceReplacementManagement = ({ onLogout }) => {
                                 >
                                   {user.consecutiveAbsences}
                                 </span>
-                                {user.consecutiveAbsences >= 2 && (
+                                {user.status === "suspended" && (
                                   <div className="suspended-label">
                                     معلق تلقائياً
                                   </div>
                                 )}
                               </div>
                             </td>
-                            <td>{getStatusBadge(assignment)}</td>
+                            <td>{getStatusBadge(assignment.status)}</td>
                             <td>
                               <div className="action-buttons">
                                 {assignment.status !== "absent" && (
@@ -497,8 +437,11 @@ const AbsenceReplacementManagement = ({ onLogout }) => {
                                   }
                                   className="btn btn-manual-replace"
                                   title="استبدال يدوي"
+                                  disabled={replacementModal.loading}
                                 >
-                                  استبدال يدوي
+                                  {replacementModal.loading
+                                    ? "جاري التحميل..."
+                                    : "استبدال يدوي"}
                                 </button>
                               </div>
                             </td>
@@ -508,8 +451,6 @@ const AbsenceReplacementManagement = ({ onLogout }) => {
                     </tbody>
                   </table>
                 </div>
-              ) : (
-                <div className="no-data">لا توجد بيانات توزيع لهذا التاريخ</div>
               )}
             </div>
           </div>
@@ -528,7 +469,9 @@ const AbsenceReplacementManagement = ({ onLogout }) => {
                     isOpen: false,
                     type: null,
                     originalUser: null,
+                    assignment: null,
                     availableReplacements: [],
+                    loading: false,
                   })
                 }
                 className="close-btn"
@@ -538,9 +481,19 @@ const AbsenceReplacementManagement = ({ onLogout }) => {
             </div>
 
             <div className="modal-body">
-              {replacementModal.availableReplacements.length === 0 ? (
+              {replacementModal.loading ? (
+                <div className="loading-indicator">
+                  <div className="spinner"></div>
+                  جاري البحث عن بدائل متاحة...
+                </div>
+              ) : replacementModal.availableReplacements.length === 0 ? (
                 <div className="no-replacements">
                   لا يوجد مستخدمون متاحون للاستبدال
+                  <br />
+                  <small>
+                    تأكد من وجود مستخدمين نشطين من نفس النوع وغير معينين في نفس
+                    الفترة
+                  </small>
                 </div>
               ) : (
                 <div className="replacements-list">
@@ -552,11 +505,18 @@ const AbsenceReplacementManagement = ({ onLogout }) => {
                         </div>
                         <div className="replacement-details">
                           <span>
-                            الرتبة:{" "}
-                            {replacement.rank === "college_employee"
-                              ? "موظف كلية"
-                              : "موظف خارجي"}
+                            النوع:{" "}
+                            {absenceReplacementService.translateUserType(
+                              replacement.type
+                            )}
                           </span>
+                          <span>
+                            الرتبة:{" "}
+                            {absenceReplacementService.translateUserRank(
+                              replacement.rank
+                            )}
+                          </span>
+                          <span>التخصص: {replacement.specialization}</span>
                           <span>الهاتف: {replacement.phone}</span>
                         </div>
                       </div>

@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\API\RoomsController;
 use App\Http\Controllers\API\ExamScheduleController;
 use App\Http\Controllers\API\DailyAssignmentController;
+use App\Http\Controllers\API\AbsenceReplacementController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -342,4 +343,35 @@ Route::middleware('auth:sanctum')->group(function () {
 Route::prefix('test-daily-assignments')->group(function () {
     Route::post('/automatic', [DailyAssignmentController::class, 'performAutomaticAssignment']);
     Route::get('/by-date', [DailyAssignmentController::class, 'getAssignmentByDate']);
+});
+
+// مسارات إدارة الغياب والاستبدال - محمية بالمصادقة
+Route::middleware('auth:sanctum')->group(function () {
+
+    // مسارات إدارة الغياب والاستبدال
+    Route::prefix('absence-management')->group(function () {
+        // الحصول على التوزيعات لتاريخ وفترة محددة
+        Route::get('/assignments', [AbsenceReplacementController::class, 'getAssignments']);
+
+        // تسجيل غياب
+        Route::post('/record-absence', [AbsenceReplacementController::class, 'recordAbsence']);
+
+        // الاستبدال التلقائي
+        Route::post('/auto-replace', [AbsenceReplacementController::class, 'autoReplace']);
+
+        // الحصول على المتاحين للاستبدال اليدوي
+        Route::get('/available-replacements', [AbsenceReplacementController::class, 'getAvailableReplacements']);
+
+        // الاستبدال اليدوي
+        Route::post('/manual-replace', [AbsenceReplacementController::class, 'manualReplace']);
+    });
+});
+
+// للاختبار - مسارات غير محمية (يمكن حذفها لاحقاً)
+Route::prefix('test-absence')->group(function () {
+    Route::get('/assignments', [AbsenceReplacementController::class, 'getAssignments']);
+    Route::post('/record-absence', [AbsenceReplacementController::class, 'recordAbsence']);
+    Route::post('/auto-replace', [AbsenceReplacementController::class, 'autoReplace']);
+    Route::get('/available-replacements', [AbsenceReplacementController::class, 'getAvailableReplacements']);
+    Route::post('/manual-replace', [AbsenceReplacementController::class, 'manualReplace']);
 });
