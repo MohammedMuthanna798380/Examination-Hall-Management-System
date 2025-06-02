@@ -313,37 +313,67 @@ Route::prefix('test-exam-schedules')->group(function () {
 
 
 // مسارات التوزيع اليومي - محمية بالمصادقة
-Route::middleware('auth:sanctum')->group(function () {
+// Route::middleware('auth:sanctum')->group(function () {
 
+//     // مسارات التوزيع اليومي
+//     Route::prefix('daily-assignments')->group(function () {
+//         // تنفيذ التوزيع التلقائي
+//         Route::post('/automatic', [DailyAssignmentController::class, 'performAutomaticAssignment']);
+
+//         // الحصول على التوزيع حسب التاريخ والفترة
+//         Route::get('/by-date', [DailyAssignmentController::class, 'getAssignmentByDate']);
+
+//         // حفظ التوزيع النهائي
+//         Route::post('/save', [DailyAssignmentController::class, 'saveAssignment']);
+
+//         // حذف التوزيع
+//         Route::delete('/delete', [DailyAssignmentController::class, 'deleteAssignment']);
+
+//         // استبدال مشرف أو ملاحظ
+//         Route::post('/replace-user', [DailyAssignmentController::class, 'replaceUser']);
+
+//         // تسجيل غياب
+//         Route::post('/record-absence', [DailyAssignmentController::class, 'recordAbsence']);
+
+//         // الحصول على المتاحين للاستبدال
+//         Route::get('/available-for-replacement', [DailyAssignmentController::class, 'getAvailableForReplacement']);
+//     });
+// });
+
+// // للاختبار - مسارات غير محمية (يمكن حذفها لاحقاً)
+// Route::prefix('test-daily-assignments')->group(function () {
+//     Route::post('/automatic', [DailyAssignmentController::class, 'performAutomaticAssignment']);
+//     Route::get('/by-date', [DailyAssignmentController::class, 'getAssignmentByDate']);
+// });
+
+Route::middleware('auth:sanctum')->group(function () {
     // مسارات التوزيع اليومي
     Route::prefix('daily-assignments')->group(function () {
-        // تنفيذ التوزيع التلقائي
+        // المسارات الموجودة
         Route::post('/automatic', [DailyAssignmentController::class, 'performAutomaticAssignment']);
-
-        // الحصول على التوزيع حسب التاريخ والفترة
         Route::get('/by-date', [DailyAssignmentController::class, 'getAssignmentByDate']);
-
-        // حفظ التوزيع النهائي
         Route::post('/save', [DailyAssignmentController::class, 'saveAssignment']);
-
-        // حذف التوزيع
         Route::delete('/delete', [DailyAssignmentController::class, 'deleteAssignment']);
-
-        // استبدال مشرف أو ملاحظ
         Route::post('/replace-user', [DailyAssignmentController::class, 'replaceUser']);
-
-        // تسجيل غياب
         Route::post('/record-absence', [DailyAssignmentController::class, 'recordAbsence']);
-
-        // الحصول على المتاحين للاستبدال
         Route::get('/available-for-replacement', [DailyAssignmentController::class, 'getAvailableForReplacement']);
+
+        // المسارات الجديدة للتوزيعات السابقة
+        Route::get('/previous', [DailyAssignmentController::class, 'getPreviousAssignments']);
+        Route::get('/details', [DailyAssignmentController::class, 'getAssignmentDetails']);
+        Route::get('/search', [DailyAssignmentController::class, 'searchAssignments']);
+
+        // إحصائيات التوزيعات
+        Route::get('/statistics/summary', [DailyAssignmentController::class, 'getAssignmentsSummary']);
+        Route::get('/statistics/trends', [DailyAssignmentController::class, 'getAssignmentsTrends']);
     });
 });
 
 // للاختبار - مسارات غير محمية (يمكن حذفها لاحقاً)
 Route::prefix('test-daily-assignments')->group(function () {
-    Route::post('/automatic', [DailyAssignmentController::class, 'performAutomaticAssignment']);
-    Route::get('/by-date', [DailyAssignmentController::class, 'getAssignmentByDate']);
+    Route::get('/previous', [DailyAssignmentController::class, 'getPreviousAssignments']);
+    Route::get('/details', [DailyAssignmentController::class, 'getAssignmentDetails']);
+    Route::get('/search', [DailyAssignmentController::class, 'searchAssignments']);
 });
 
 // مسارات إدارة الغياب والاستبدال - محمية بالمصادقة

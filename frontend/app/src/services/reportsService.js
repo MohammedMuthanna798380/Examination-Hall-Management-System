@@ -1,4 +1,4 @@
-// frontend/app/src/services/reportsService.js - نسخة مصححة
+// frontend/app/src/services/reportsService.js
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
 
@@ -102,18 +102,7 @@ export const reportsService = {
             console.error('❌ خطأ في جلب تقرير النظرة العامة:', error);
 
             // إرجاع بيانات افتراضية في حالة الخطأ
-            return {
-                totalSupervisors: 0,
-                totalObservers: 0,
-                totalHalls: 0,
-                totalExams: 0,
-                attendanceRate: 0,
-                avgSupervisorsPerExam: 0,
-                avgObserversPerExam: 0,
-                mostUsedHall: 'غير متاح',
-                mostActiveSupervisor: 'غير متاح',
-                replacementRate: 0,
-            };
+            throw new Error(error.message || 'فشل في جلب تقرير النظرة العامة');
         }
     },
 
@@ -370,17 +359,17 @@ export const reportsService = {
                 return {
                     totalUsers: data.length,
                     avgAttendanceRate: data.length > 0
-                        ? Math.round(data.reduce((sum, user) => sum + user.attendanceRate, 0) / data.length)
+                        ? Math.round(data.reduce((sum, user) => sum + (user.attendanceRate || 0), 0) / data.length)
                         : 0,
-                    perfectAttendance: data.filter(user => user.attendanceRate === 100).length,
-                    poorAttendance: data.filter(user => user.attendanceRate < 80).length,
+                    perfectAttendance: data.filter(user => (user.attendanceRate || 0) === 100).length,
+                    poorAttendance: data.filter(user => (user.attendanceRate || 0) < 80).length,
                 };
 
             case 'hall-usage':
                 return {
                     totalHalls: data.length,
                     avgUtilization: data.length > 0
-                        ? Math.round(data.reduce((sum, hall) => sum + hall.utilizationRate, 0) / data.length)
+                        ? Math.round(data.reduce((sum, hall) => sum + (hall.utilizationRate || 0), 0) / data.length)
                         : 0,
                     mostUsed: data.length > 0 ? data[0].hallName : 'غير محدد',
                     leastUsed: data.length > 0 ? data[data.length - 1].hallName : 'غير محدد',
@@ -440,17 +429,111 @@ export const reportsService = {
         }, {});
     },
 
-    // اختبار الاتصال
+    // إنشاء بيانات افتراضية للاختبار
+    generateDefaultData: (type) => {
+        switch (type) {
+            case 'overview':
+                return {
+                    totalSupervisors: 0,
+                    totalObservers: 0,
+                    totalHalls: 0,
+                    totalExams: 0,
+                    attendanceRate: 0,
+                    avgSupervisorsPerExam: 0,
+                    avgObserversPerExam: 0,
+                    mostUsedHall: 'لا توجد بيانات',
+                    mostActiveSupervisor: 'لا توجد بيانات',
+                    replacementRate: 0,
+                };
+
+            case 'attendance':
+                return [];
+
+            case 'hall-usage':
+                return [];
+
+            case 'replacements':
+                return [];
+
+            case 'distribution':
+                return [];
+
+            default:
+                return null;
+        }
+    },
+
+    // اختبار الاتصال مع التقارير
     testConnection: async () => {
         try {
-            const response = await fetch(`${API_BASE_URL}/test-reports/overview`);
+            console.log('🔄 اختبار اتصال التقارير...');
+
+            // جرب الاتصال بمسار الاختبار أولاً
+            const response = await fetch(`${API_BASE_URL}/test-reports-data`);
             const data = await response.json();
+
             console.log('✅ اختبار الاتصال نجح:', data);
             return data;
         } catch (error) {
             console.error('❌ فشل اختبار الاتصال:', error);
-            throw error;
+
+            // جرب مسار اختبار التقارير المحمي
+            try {
+                const fallbackResponse = await makeRequest('/reports/test-connection');
+                console.log('✅ اختبار الاتصال البديل نجح:', fallbackResponse);
+                return fallbackResponse;
+            } catch (fallbackError) {
+                console.error('❌ فشل اختبار الاتصال البديل:', fallbackError);
+                throw new Error('فشل في الاتصال بخدمة التقارير');
+            }
         }
+    },
+
+    // دالة مساعدة للتحقق من حالة الخدمة
+    checkServiceHealth: async () => {
+        try {
+            const healthCheck = await makeRequest('/reports/test-connection');
+            return {
+                isHealthy: true,
+                message: 'خدمة التقارير تعمل بشكل طبيعي',
+                data: healthCheck.data || null
+            };
+        } catch (error) {
+            return {
+                isHealthy: false,
+                message: error.message || 'خدمة التقارير غير متاحة',
+                data: null
+            };
+        }
+    },
+
+    // دالة لمعالجة الأخطاء بشكل موحد
+    handleError: (error, context = '') => {
+        console.error(`❌ خطأ في ${context}:`, error);
+
+        // رسائل خطأ مخصصة حسب السياق
+        const errorMessages = {
+            'network': 'فشل في الاتصال بالخادم. تحقق من اتصال الإنترنت.',
+            'auth': 'انتهت صلاحية الجلسة. يرجى تسجيل الدخول مرة أخرى.',
+            'permission': 'غير مصرح لك بالوصول إلى هذا التقرير.',
+            'data': 'لا توجد بيانات كافية لإنشاء التقرير.',
+            'server': 'خطأ في الخادم. يرجى المحاولة لاحقاً.',
+        };
+
+        // تحديد نوع الخطأ
+        if (error.message.includes('fetch')) {
+            return errorMessages.network;
+        } else if (error.message.includes('401') || error.message.includes('انتهت صلاحية')) {
+            return errorMessages.auth;
+        } else if (error.message.includes('403') || error.message.includes('غير مصرح')) {
+            return errorMessages.permission;
+        } else if (error.message.includes('404') || error.message.includes('لا توجد')) {
+            return errorMessages.data;
+        } else if (error.message.includes('500') || error.message.includes('خادم')) {
+            return errorMessages.server;
+        }
+
+        return error.message || 'حدث خطأ غير متوقع';
     }
 };
 

@@ -511,7 +511,295 @@ export const dailyAssignmentService = {
                 conflictCount: conflicts.length
             }
         };
+    },
+    getPreviousAssignments: async (filters = {}) => {
+        try {
+            const queryParams = new URLSearchParams();
+
+            if (filters.page) queryParams.append('page', filters.page);
+            if (filters.per_page) queryParams.append('per_page', filters.per_page);
+            if (filters.start_date) queryParams.append('start_date', filters.start_date);
+            if (filters.end_date) queryParams.append('end_date', filters.end_date);
+            if (filters.period && filters.period !== 'all') queryParams.append('period', filters.period);
+            if (filters.status && filters.status !== 'all') queryParams.append('status', filters.status);
+
+            const url = `/daily-assignments/previous${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
+            const response = await makeRequest(url);
+
+            console.log(`✅ تم جلب ${response.data.assignments.length} توزيع سابق`);
+            return response.data;
+        } catch (error) {
+            console.error('❌ خطأ في جلب التوزيعات السابقة:', error);
+            throw new Error(error.message || 'فشل في جلب التوزيعات السابقة');
+        }
+    },
+
+    // الحصول على تفاصيل توزيع محدد
+    getAssignmentDetails: async (date, period) => {
+        try {
+            if (!date || !period) {
+                throw new Error('التاريخ والفترة مطلوبان');
+            }
+
+            const queryParams = new URLSearchParams({
+                date: date,
+                period: period
+            });
+
+            const response = await makeRequest(`/daily-assignments/details?${queryParams.toString()}`);
+
+            console.log(`✅ تم جلب تفاصيل التوزيع لتاريخ ${date} فترة ${period}`);
+            return response.data;
+        } catch (error) {
+            console.error('❌ خطأ في جلب تفاصيل التوزيع:', error);
+            throw new Error(error.message || 'فشل في جلب تفاصيل التوزيع');
+        }
+    },
+
+    // البحث في التوزيعات السابقة
+    searchAssignments: async (searchTerm, searchType = 'all') => {
+        try {
+            if (!searchTerm || searchTerm.trim().length < 2) {
+                throw new Error('يجب إدخال نص البحث (حد أدنى حرفين)');
+            }
+
+            const queryParams = new URLSearchParams({
+                search_term: searchTerm.trim(),
+                search_type: searchType
+            });
+
+            const response = await makeRequest(`/daily-assignments/search?${queryParams.toString()}`);
+
+            console.log(`✅ تم البحث عن "${searchTerm}" ووجد ${response.data.length} نتيجة`);
+            return response.data;
+        } catch (error) {
+            console.error('❌ خطأ في البحث:', error);
+            throw new Error(error.message || 'فشل في البحث');
+        }
+    },
+
+    // الحصول على ملخص إحصائيات التوزيعات
+    getAssignmentsSummary: async (startDate, endDate) => {
+        try {
+            const queryParams = new URLSearchParams();
+            if (startDate) queryParams.append('start_date', startDate);
+            if (endDate) queryParams.append('end_date', endDate);
+
+            const response = await makeRequest(`/daily-assignments/statistics/summary?${queryParams.toString()}`);
+
+            console.log('✅ تم جلب ملخص إحصائيات التوزيعات');
+            return response.data;
+        } catch (error) {
+            console.error('❌ خطأ في جلب ملخص الإحصائيات:', error);
+            throw new Error(error.message || 'فشل في جلب ملخص الإحصائيات');
+        }
+    },
+
+    // الحصول على اتجاهات التوزيعات
+    getAssignmentsTrends: async (period = 'month') => {
+        try {
+            const queryParams = new URLSearchParams({ period });
+            const response = await makeRequest(`/daily-assignments/statistics/trends?${queryParams.toString()}`);
+
+            console.log('✅ تم جلب اتجاهات التوزيعات');
+            return response.data;
+        } catch (error) {
+            console.error('❌ خطأ في جلب اتجاهات التوزيعات:', error);
+            throw new Error(error.message || 'فشل في جلب اتجاهات التوزيعات');
+        }
+    },
+
+    // تصدير التوزيعات السابقة
+    exportPreviousAssignments: async (filters = {}, format = 'pdf') => {
+        try {
+            const exportData = {
+                ...filters,
+                format: format,
+                export_type: 'previous_assignments'
+            };
+
+            const response = await makeRequest('/daily-assignments/export', {
+                method: 'POST',
+                body: JSON.stringify(exportData),
+            });
+
+            console.log(`✅ تم طلب تصدير التوزيعات السابقة بصيغة ${format}`);
+            return response.data;
+        } catch (error) {
+            console.error('❌ خطأ في تصدير التوزيعات:', error);
+            throw new Error(error.message || 'فشل في تصدير التوزيعات');
+        }
+    },
+
+    // دوال مساعدة للتوزيعات السابقة
+
+    // تنسيق بيانات التوزيع للعرض
+    formatAssignmentForDisplay: (assignment) => {
+        return {
+            ...assignment,
+            formatted_date: dailyAssignmentService.formatDateForDisplay(assignment.date),
+            period_text: dailyAssignmentService.translatePeriod(assignment.period),
+            status_text: dailyAssignmentService.translateStatus(assignment.statistics.success_rate >= 100 ? 'complete' :
+                assignment.statistics.success_rate > 0 ? 'partial' : 'incomplete'),
+            success_rate_text: `${assignment.statistics.success_rate}%`,
+            coverage_text: `${assignment.statistics.total_supervisors}/${assignment.statistics.required_supervisors} مشرف، ${assignment.statistics.total_observers}/${assignment.statistics.required_observers} ملاحظ`
+        };
+    },
+
+    // تصفية التوزيعات حسب معايير محددة
+    filterAssignments: (assignments, filters) => {
+        return assignments.filter(assignment => {
+            // تصفية حسب التاريخ
+            if (filters.start_date && assignment.date < filters.start_date) return false;
+            if (filters.end_date && assignment.date > filters.end_date) return false;
+
+            // تصفية حسب الفترة
+            if (filters.period && filters.period !== 'all' && assignment.period !== filters.period) return false;
+
+            // تصفية حسب الحالة
+            if (filters.status && filters.status !== 'all') {
+                const assignmentStatus = assignment.statistics.success_rate >= 100 ? 'complete' :
+                    assignment.statistics.success_rate > 0 ? 'partial' : 'incomplete';
+                if (assignmentStatus !== filters.status) return false;
+            }
+
+            // تصفية حسب نص البحث
+            if (filters.search_text) {
+                const searchTerm = filters.search_text.toLowerCase();
+                const searchableText = `${assignment.date} ${assignment.period} ${assignment.rooms.map(r => r.room_name + ' ' + r.supervisor.name).join(' ')}`.toLowerCase();
+                if (!searchableText.includes(searchTerm)) return false;
+            }
+
+            return true;
+        });
+    },
+
+    // ترتيب التوزيعات
+    sortAssignments: (assignments, sortBy = 'date', sortOrder = 'desc') => {
+        return [...assignments].sort((a, b) => {
+            let aValue, bValue;
+
+            switch (sortBy) {
+                case 'date':
+                    aValue = new Date(a.date + ' ' + (a.period === 'morning' ? '08:00' : '14:00'));
+                    bValue = new Date(b.date + ' ' + (b.period === 'morning' ? '08:00' : '14:00'));
+                    break;
+                case 'success_rate':
+                    aValue = a.statistics.success_rate;
+                    bValue = b.statistics.success_rate;
+                    break;
+                case 'total_rooms':
+                    aValue = a.statistics.total_rooms;
+                    bValue = b.statistics.total_rooms;
+                    break;
+                case 'period':
+                    aValue = a.period === 'morning' ? 0 : 1;
+                    bValue = b.period === 'morning' ? 0 : 1;
+                    break;
+                default:
+                    aValue = a[sortBy];
+                    bValue = b[sortBy];
+            }
+
+            if (sortOrder === 'asc') {
+                return aValue > bValue ? 1 : aValue < bValue ? -1 : 0;
+            } else {
+                return aValue < bValue ? 1 : aValue > bValue ? -1 : 0;
+            }
+        });
+    },
+
+    // تجميع التوزيعات حسب فترة زمنية
+    groupAssignmentsByPeriod: (assignments, groupBy = 'week') => {
+        const groups = {};
+
+        assignments.forEach(assignment => {
+            const date = new Date(assignment.date);
+            let groupKey;
+
+            switch (groupBy) {
+                case 'day':
+                    groupKey = assignment.date;
+                    break;
+                case 'week':
+                    const weekStart = new Date(date);
+                    weekStart.setDate(date.getDate() - date.getDay());
+                    groupKey = weekStart.toISOString().split('T')[0];
+                    break;
+                case 'month':
+                    groupKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+                    break;
+                case 'year':
+                    groupKey = date.getFullYear().toString();
+                    break;
+                default:
+                    groupKey = assignment.date;
+            }
+
+            if (!groups[groupKey]) {
+                groups[groupKey] = {
+                    key: groupKey,
+                    assignments: [],
+                    summary: {
+                        total_assignments: 0,
+                        total_rooms: 0,
+                        total_supervisors: 0,
+                        total_observers: 0,
+                        average_success_rate: 0
+                    }
+                };
+            }
+
+            groups[groupKey].assignments.push(assignment);
+        });
+
+        // حساب الملخص لكل مجموعة
+        Object.values(groups).forEach(group => {
+            const assignments = group.assignments;
+            group.summary = {
+                total_assignments: assignments.length,
+                total_rooms: assignments.reduce((sum, a) => sum + a.statistics.total_rooms, 0),
+                total_supervisors: assignments.reduce((sum, a) => sum + a.statistics.total_supervisors, 0),
+                total_observers: assignments.reduce((sum, a) => sum + a.statistics.total_observers, 0),
+                average_success_rate: assignments.length > 0 ?
+                    Math.round(assignments.reduce((sum, a) => sum + a.statistics.success_rate, 0) / assignments.length) : 0
+            };
+        });
+
+        return groups;
+    },
+
+    // إنشاء تقرير مفصل للتوزيعات السابقة
+    generateDetailedReport: (assignments, options = {}) => {
+        const report = {
+            generated_at: new Date().toLocaleString('ar-EG'),
+            period: {
+                start_date: options.start_date || 'غير محدد',
+                end_date: options.end_date || 'غير محدد'
+            },
+            summary: {
+                total_assignments: assignments.length,
+                total_unique_dates: [...new Set(assignments.map(a => a.date))].length,
+                total_rooms: assignments.reduce((sum, a) => sum + a.statistics.total_rooms, 0),
+                total_supervisors: assignments.reduce((sum, a) => sum + a.statistics.total_supervisors, 0),
+                total_observers: assignments.reduce((sum, a) => sum + a.statistics.total_observers, 0),
+                average_success_rate: assignments.length > 0 ?
+                    Math.round(assignments.reduce((sum, a) => sum + a.statistics.success_rate, 0) / assignments.length) : 0
+            },
+            by_period: {
+                morning: assignments.filter(a => a.period === 'morning').length,
+                evening: assignments.filter(a => a.period === 'evening').length
+            },
+            by_status: {
+                complete: assignments.filter(a => a.statistics.success_rate >= 100).length,
+                partial: assignments.filter(a => a.statistics.success_rate > 0 && a.statistics.success_rate < 100).length,
+                incomplete: assignments.filter(a => a.statistics.success_rate === 0).length
+            },
+            trends: dailyAssignmentService.groupAssignmentsByPeriod(assignments, options.group_by || 'week'),
+            assignments: assignments.map(a => dailyAssignmentService.formatAssignmentForDisplay(a))
+        };
+
+        return report;
     }
 };
-
 export default dailyAssignmentService;

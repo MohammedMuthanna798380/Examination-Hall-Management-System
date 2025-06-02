@@ -920,4 +920,427 @@ class DailyAssignmentController extends Controller
             ], 500);
         }
     }
+
+
+
+    /**
+     * الحصول على قائمة التوزيعات السابقة
+     */
+    public function getPreviousAssignments(Request $request)
+    {
+        try {
+            Log::info('=== جلب التوزيعات السابقة ===');
+
+            $validator = Validator::make($request->all(), [
+                'page' => 'nullable|integer|min:1',
+                'per_page' => 'nullable|integer|min:1|max:100',
+                'start_date' => 'nullable|date',
+                'end_date' => 'nullable|date|after_or_equal:start_date',
+                'period' => 'nullable|in:morning,evening',
+                'status' => 'nullable|in:complete,partial,incomplete',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'خطأ في البيانات المدخلة',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            $perPage = $request->per_page ?? 10;
+            $page = $request->page ?? 1;
+
+            // بناء الاستعلام
+            $query = DailyAssignment::with(['room.floor.building', 'supervisor'])
+                ->orderBy('assignment_date', 'desc')
+                ->orderBy('period', 'desc');
+
+            // تطبيق الفلاتر
+            if ($request->filled('start_date')) {
+                $query->where('assignment_date', '>=', $request->start_date);
+            }
+
+            if ($request->filled('end_date')) {
+                $query->where('assignment_date', '<=', $request->end_date);
+            }
+
+            if ($request->filled('period')) {
+                $query->where('period', $request->period);
+            }
+
+            if ($request->filled('status')) {
+                $query->where('status', $request->status);
+            }
+
+            // تجميع التوزيعات حسب التاريخ والفترة
+            $assignments = $query->get()
+                ->groupBy(function ($assignment) {
+                    return $assignment->assignment_date->format('Y-m-d') . '_' . $assignment->period;
+                })
+                ->map(function ($dateAssignments, $key) {
+                    $firstAssignment = $dateAssignments->first();
+                    $date = $firstAssignment->assignment_date->format('Y-m-d');
+                    $period = $firstAssignment->period;
+
+                    // حساب الإحصائيات
+                    $totalRooms = $dateAssignments->count();
+                    $completeAssignments = $dateAssignments->where('status', 'complete')->count();
+                    $partialAssignments = $dateAssignments->where('status', 'partial')->count();
+                    $incompleteAssignments = $dateAssignments->where('status', 'incomplete')->count();
+
+                    $totalSupervisors = $dateAssignments->whereNotNull('supervisor_id')->count();
+                    $totalObservers = $dateAssignments->sum(function ($assignment) {
+                        return $assignment->observer_ids ? count($assignment->observer_ids) : 0;
+                    });
+
+                    // تنسيق بيانات القاعات
+                    $roomsData = $dateAssignments->map(function ($assignment) {
+                        $observerDetails = [];
+                        if ($assignment->observer_ids) {
+                            $observers = Users_s::whereIn('id', $assignment->observer_ids)->get();
+                            $observerDetails = $observers->map(function ($observer) {
+                                return [
+                                    'id' => $observer->id,
+                                    'name' => $observer->name,
+                                    'rank' => $observer->rank,
+                                    'missing' => false
+                                ];
+                            })->toArray();
+                        }
+
+                        // إضافة ملاحظين مفقودين إذا كان العدد أقل من المطلوب
+                        $requiredObservers = $assignment->room->required_observers;
+                        $currentObserversCount = count($observerDetails);
+
+                        if ($currentObserversCount < $requiredObservers) {
+                            for ($i = $currentObserversCount; $i < $requiredObservers; $i++) {
+                                $observerDetails[] = [
+                                    'id' => null,
+                                    'name' => 'غير محدد',
+                                    'rank' => null,
+                                    'missing' => true
+                                ];
+                            }
+                        }
+
+                        return [
+                            'id' => $assignment->id,
+                            'room_id' => $assignment->room->id,
+                            'room_name' => $assignment->room->name,
+                            'building' => $assignment->room->floor->building->name,
+                            'floor' => $assignment->room->floor->name,
+                            'capacity' => $assignment->room->capacity,
+                            'supervisor' => $assignment->supervisor ? [
+                                'id' => $assignment->supervisor->id,
+                                'name' => $assignment->supervisor->name,
+                                'rank' => $assignment->supervisor->rank,
+                                'missing' => false
+                            ] : [
+                                'id' => null,
+                                'name' => 'غير محدد',
+                                'rank' => null,
+                                'missing' => true
+                            ],
+                            'observers' => $observerDetails,
+                            'status' => $assignment->status,
+                            'assignment_type' => $assignment->assignment_type,
+                            'notes' => $assignment->notes,
+                        ];
+                    })->values();
+
+                    return [
+                        'date' => $date,
+                        'period' => $period,
+                        'period_arabic' => $period === 'morning' ? 'صباحية' : 'مسائية',
+                        'formatted_date' => Carbon::parse($date)->locale('ar')->translatedFormat('l j F Y'),
+                        'statistics' => [
+                            'total_rooms' => $totalRooms,
+                            'complete_assignments' => $completeAssignments,
+                            'partial_assignments' => $partialAssignments,
+                            'incomplete_assignments' => $incompleteAssignments,
+                            'total_supervisors' => $totalSupervisors,
+                            'total_observers' => $totalObservers,
+                            'success_rate' => $totalRooms > 0 ? round(($completeAssignments / $totalRooms) * 100, 1) : 0
+                        ],
+                        'rooms' => $roomsData,
+                        'created_at' => $firstAssignment->created_at->format('Y-m-d H:i'),
+                    ];
+                })
+                ->values();
+
+            // تطبيق التصفيف (pagination) يدوياً
+            $total = $assignments->count();
+            $offset = ($page - 1) * $perPage;
+            $paginatedAssignments = $assignments->slice($offset, $perPage)->values();
+
+            Log::info('تم جلب ' . $paginatedAssignments->count() . ' توزيع من أصل ' . $total);
+
+            return response()->json([
+                'status' => true,
+                'data' => [
+                    'assignments' => $paginatedAssignments,
+                    'pagination' => [
+                        'current_page' => $page,
+                        'per_page' => $perPage,
+                        'total' => $total,
+                        'last_page' => ceil($total / $perPage),
+                        'from' => $offset + 1,
+                        'to' => min($offset + $perPage, $total),
+                    ]
+                ]
+            ]);
+        } catch (\Exception $e) {
+            Log::error('خطأ في جلب التوزيعات السابقة: ' . $e->getMessage());
+            return response()->json([
+                'status' => false,
+                'message' => 'حدث خطأ أثناء جلب التوزيعات السابقة',
+                'error' => config('app.debug') ? $e->getMessage() : 'خطأ في الخادم'
+            ], 500);
+        }
+    }
+
+    /**
+     * الحصول على تفاصيل توزيع محدد
+     */
+    public function getAssignmentDetails(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'date' => 'required|date',
+                'period' => 'required|in:morning,evening',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'خطأ في البيانات المدخلة',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            $assignments = DailyAssignment::with(['room.floor.building', 'supervisor'])
+                ->where('assignment_date', $request->date)
+                ->where('period', $request->period)
+                ->get();
+
+            if ($assignments->isEmpty()) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'لا يوجد توزيع لهذا التاريخ والفترة'
+                ], 404);
+            }
+
+            // تنسيق البيانات للعرض التفصيلي
+            $detailedData = [
+                'date' => $request->date,
+                'period' => $request->period,
+                'period_arabic' => $request->period === 'morning' ? 'صباحية' : 'مسائية',
+                'formatted_date' => Carbon::parse($request->date)->locale('ar')->translatedFormat('l j F Y'),
+                'assignments' => $assignments->map(function ($assignment) {
+                    return $assignment->getFullDetails();
+                }),
+                'statistics' => $this->calculateDetailedStatistics($assignments),
+                'absence_replacements' => $this->getAbsenceReplacements($request->date),
+            ];
+
+            return response()->json([
+                'status' => true,
+                'data' => $detailedData
+            ]);
+        } catch (\Exception $e) {
+            Log::error('خطأ في جلب تفاصيل التوزيع: ' . $e->getMessage());
+            return response()->json([
+                'status' => false,
+                'message' => 'حدث خطأ أثناء جلب تفاصيل التوزيع',
+                'error' => config('app.debug') ? $e->getMessage() : 'خطأ في الخادم'
+            ], 500);
+        }
+    }
+
+    /**
+     * البحث في التوزيعات السابقة
+     */
+    public function searchAssignments(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'search_term' => 'required|string|min:2',
+                'search_type' => 'nullable|in:user_name,room_name,date',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'خطأ في البيانات المدخلة',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            $searchTerm = $request->search_term;
+            $searchType = $request->search_type ?? 'all';
+
+            $query = DailyAssignment::with(['room.floor.building', 'supervisor']);
+
+            switch ($searchType) {
+                case 'user_name':
+                    $query->whereHas('supervisor', function ($q) use ($searchTerm) {
+                        $q->where('name', 'LIKE', "%{$searchTerm}%");
+                    });
+                    break;
+
+                case 'room_name':
+                    $query->whereHas('room', function ($q) use ($searchTerm) {
+                        $q->where('name', 'LIKE', "%{$searchTerm}%");
+                    });
+                    break;
+
+                case 'date':
+                    $query->where('assignment_date', 'LIKE', "%{$searchTerm}%");
+                    break;
+
+                default:
+                    // البحث في جميع الحقول
+                    $query->where(function ($q) use ($searchTerm) {
+                        $q->whereHas('supervisor', function ($sq) use ($searchTerm) {
+                            $sq->where('name', 'LIKE', "%{$searchTerm}%");
+                        })
+                            ->orWhereHas('room', function ($sq) use ($searchTerm) {
+                                $sq->where('name', 'LIKE', "%{$searchTerm}%");
+                            })
+                            ->orWhere('assignment_date', 'LIKE', "%{$searchTerm}%");
+                    });
+                    break;
+            }
+
+            $results = $query->orderBy('assignment_date', 'desc')
+                ->take(50) // تحديد عدد النتائج
+                ->get()
+                ->map(function ($assignment) {
+                    return [
+                        'id' => $assignment->id,
+                        'date' => $assignment->assignment_date->format('Y-m-d'),
+                        'period' => $assignment->period,
+                        'period_arabic' => $assignment->period === 'morning' ? 'صباحية' : 'مسائية',
+                        'room_name' => $assignment->room->name,
+                        'building' => $assignment->room->floor->building->name,
+                        'supervisor_name' => $assignment->supervisor ? $assignment->supervisor->name : 'غير محدد',
+                        'status' => $assignment->status,
+                        'status_arabic' => $this->translateStatus($assignment->status),
+                    ];
+                });
+
+            return response()->json([
+                'status' => true,
+                'data' => $results
+            ]);
+        } catch (\Exception $e) {
+            Log::error('خطأ في البحث في التوزيعات: ' . $e->getMessage());
+            return response()->json([
+                'status' => false,
+                'message' => 'حدث خطأ أثناء البحث',
+                'error' => config('app.debug') ? $e->getMessage() : 'خطأ في الخادم'
+            ], 500);
+        }
+    }
+
+    /**
+     * حساب إحصائيات تفصيلية
+     */
+    private function calculateDetailedStatistics($assignments)
+    {
+        $totalRooms = $assignments->count();
+        $completeAssignments = $assignments->where('status', 'complete')->count();
+        $partialAssignments = $assignments->where('status', 'partial')->count();
+        $incompleteAssignments = $assignments->where('status', 'incomplete')->count();
+
+        $totalSupervisors = $assignments->whereNotNull('supervisor_id')->count();
+
+        $totalObservers = $assignments->sum(function ($assignment) {
+            return $assignment->observer_ids ? count($assignment->observer_ids) : 0;
+        });
+
+        $totalRequiredSupervisors = $assignments->sum(function ($assignment) {
+            return $assignment->room->required_supervisors;
+        });
+
+        $totalRequiredObservers = $assignments->sum(function ($assignment) {
+            return $assignment->room->required_observers;
+        });
+
+        return [
+            'total_rooms' => $totalRooms,
+            'complete_assignments' => $completeAssignments,
+            'partial_assignments' => $partialAssignments,
+            'incomplete_assignments' => $incompleteAssignments,
+            'total_supervisors' => $totalSupervisors,
+            'total_observers' => $totalObservers,
+            'required_supervisors' => $totalRequiredSupervisors,
+            'required_observers' => $totalRequiredObservers,
+            'supervisor_coverage' => $totalRequiredSupervisors > 0 ?
+                round(($totalSupervisors / $totalRequiredSupervisors) * 100, 1) : 0,
+            'observer_coverage' => $totalRequiredObservers > 0 ?
+                round(($totalObservers / $totalRequiredObservers) * 100, 1) : 0,
+            'success_rate' => $totalRooms > 0 ?
+                round(($completeAssignments / $totalRooms) * 100, 1) : 0,
+        ];
+    }
+
+    /**
+     * الحصول على سجلات الغياب والاستبدال
+     */
+    private function getAbsenceReplacements($date)
+    {
+        return DB::table('public.absence_replacements as ar')
+            ->join('public.users_s as original', 'ar.original_user_id', '=', 'original.id')
+            ->leftJoin('public.users_s as replacement', 'ar.replacement_user_id', '=', 'replacement.id')
+            ->join('public.rooms as r', 'ar.room_id', '=', 'r.id')
+            ->where('ar.date', $date)
+            ->select([
+                'ar.action_type',
+                'ar.reason',
+                'original.name as original_user_name',
+                'original.type as user_type',
+                'replacement.name as replacement_user_name',
+                'r.name as room_name'
+            ])
+            ->get()
+            ->map(function ($record) {
+                return [
+                    'action_type' => $record->action_type,
+                    'action_type_arabic' => $this->translateActionType($record->action_type),
+                    'reason' => $record->reason,
+                    'original_user_name' => $record->original_user_name,
+                    'user_type' => $record->user_type === 'supervisor' ? 'مشرف' : 'ملاحظ',
+                    'replacement_user_name' => $record->replacement_user_name ?? 'غير محدد',
+                    'room_name' => $record->room_name,
+                ];
+            });
+    }
+
+    /**
+     * ترجمة حالة التوزيع
+     */
+    private function translateStatus($status)
+    {
+        return match ($status) {
+            'complete' => 'مكتمل',
+            'partial' => 'جزئي',
+            'incomplete' => 'غير مكتمل',
+            default => $status
+        };
+    }
+
+    /**
+     * ترجمة نوع الإجراء
+     */
+    private function translateActionType($actionType)
+    {
+        return match ($actionType) {
+            'absence' => 'غياب',
+            'auto_replacement' => 'استبدال تلقائي',
+            'manual_replacement' => 'استبدال يدوي',
+            default => $actionType
+        };
+    }
 }
