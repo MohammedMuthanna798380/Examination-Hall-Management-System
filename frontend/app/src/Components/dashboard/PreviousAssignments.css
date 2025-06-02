@@ -1,0 +1,592 @@
+/* PreviousAssignments.css - أنماط خاصة بصفحة التوزيعات السابقة */
+
+/* أنماط شريط البحث المحسن */
+.search-controls {
+    background-color: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+}
+
+.search-controls .form-group {
+    margin-bottom: 0;
+}
+
+.search-controls .form-group label {
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 5px;
+}
+
+.search-controls input[type="text"] {
+    border: 2px solid #ced4da;
+    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.search-controls input[type="text"]:focus {
+    border-color: #80bdff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+/* أنماط بطاقات التوزيعات */
+.assignments-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 20px;
+    margin-top: 20px;
+}
+
+.assignment-card {
+    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    border: 1px solid #e9ecef;
+}
+
+.assignment-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+.assignment-card .card-header {
+    background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+    color: white;
+    padding: 15px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.assignment-card .card-header h4 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.assignment-card .period-badge {
+    background-color: rgba(255, 255, 255, 0.2);
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    backdrop-filter: blur(10px);
+}
+
+.assignment-card .card-content {
+    padding: 20px;
+}
+
+.assignment-card .assignment-stats {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.assignment-card .stat-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    background-color: #f8f9fa;
+    border-radius: 6px;
+    border-left: 4px solid #007bff;
+}
+
+.assignment-card .stat-item label {
+    font-weight: 600;
+    color: #495057;
+    margin: 0;
+}
+
+.assignment-card .stat-item span {
+    font-weight: 700;
+    color: #212529;
+}
+
+.assignment-card .success-rate.success {
+    color: #28a745;
+}
+
+.assignment-card .success-rate.warning {
+    color: #ffc107;
+}
+
+.assignment-card .success-rate.danger {
+    color: #dc3545;
+}
+
+.assignment-card .rooms-preview {
+    margin-bottom: 20px;
+}
+
+.assignment-card .rooms-preview h5 {
+    margin: 0 0 10px 0;
+    color: #495057;
+    font-weight: 600;
+}
+
+.assignment-card .rooms-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.assignment-card .room-chip {
+    background-color: #e3f2fd;
+    color: #1976d2;
+    padding: 4px 10px;
+    border-radius: 15px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    border: 1px solid #bbdefb;
+}
+
+.assignment-card .room-chip.more {
+    background-color: #fce4ec;
+    color: #c2185b;
+    border-color: #f8bbd9;
+}
+
+.assignment-card .card-actions {
+    display: flex;
+    gap: 10px;
+    padding-top: 15px;
+    border-top: 1px solid #e9ecef;
+}
+
+.assignment-card .card-actions .btn {
+    flex: 1;
+    justify-content: center;
+    padding: 10px 15px;
+    font-weight: 600;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+}
+
+/* أنماط شريط التقدم المحسن */
+.progress-container {
+    position: relative;
+    background-color: #e9ecef;
+    border-radius: 10px;
+    height: 20px;
+    overflow: hidden;
+    margin: 5px 0;
+}
+
+.progress-bar {
+    height: 100%;
+    border-radius: 10px;
+    transition: width 0.6s ease;
+    position: relative;
+}
+
+.progress-bar.success {
+    background: linear-gradient(90deg, #28a745 0%, #20c997 100%);
+}
+
+.progress-bar.warning {
+    background: linear-gradient(90deg, #ffc107 0%, #fd7e14 100%);
+}
+
+.progress-bar.danger {
+    background: linear-gradient(90deg, #dc3545 0%, #e83e8c 100%);
+}
+
+.progress-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #fff;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+/* أنماط التصفيف المحسن */
+.pagination-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 30px;
+    padding: 20px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+}
+
+.pagination-info {
+    color: #6c757d;
+    font-weight: 500;
+}
+
+.pagination-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.pagination-controls .btn {
+    padding: 8px 16px;
+    font-size: 0.875rem;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+}
+
+.pagination-controls .btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.pagination-controls .page-info {
+    margin: 0 15px;
+    font-weight: 600;
+    color: #495057;
+    padding: 8px 16px;
+    background-color: #fff;
+    border-radius: 6px;
+    border: 1px solid #ced4da;
+}
+
+/* أنماط نافذة التفاصيل المحسنة */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1050;
+    backdrop-filter: blur(3px);
+}
+
+.modal-content {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+    animation: modalSlideIn 0.3s ease-out;
+}
+
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: scale(0.9) translateY(-20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.modal-header {
+    background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+    color: white;
+    padding: 20px 25px;
+    border-radius: 12px 12px 0 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h2 {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+}
+
+.close-btn {
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    color: white;
+    font-size: 1.5rem;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.close-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+/* أنماط ملخص الأداء */
+.performance-summary {
+    background-color: #f8f9fa;
+    padding: 20px;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+}
+
+.performance-grid {
+    margin-top: 15px;
+}
+
+.performance-item {
+    background: white;
+    padding: 15px;
+    border-radius: 6px;
+    border: 1px solid #e9ecef;
+}
+
+.performance-item h4 {
+    margin: 0 0 10px 0;
+    color: #495057;
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.progress-bar-container {
+    position: relative;
+    background-color: #e9ecef;
+    border-radius: 10px;
+    height: 24px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+}
+
+.progress-bar-container span {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    font-weight: 600;
+    font-size: 0.8rem;
+    z-index: 2;
+}
+
+/* أنماط الملاحظات الإضافية */
+.additional-notes h3 {
+    color: #495057;
+    margin: 0 0 15px 0;
+    font-weight: 600;
+}
+
+.notes-content {
+    position: relative;
+}
+
+.notes-content::before {
+    content: '"';
+    font-size: 3rem;
+    color: #007bff;
+    position: absolute;
+    top: -10px;
+    right: 10px;
+    opacity: 0.3;
+}
+
+/* أنماط العمليات الخاصة */
+.action-type {
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.action-type.absence {
+    background-color: #ffeaa7;
+    color: #d63031;
+}
+
+.action-type.auto_replacement {
+    background-color: #a8e6cf;
+    color: #00b894;
+}
+
+.action-type.manual_replacement {
+    background-color: #74b9ff;
+    color: #0984e3;
+}
+
+/* أنماط مخصصة للطباعة */
+@media print {
+    .assignment-card {
+        break-inside: avoid;
+        box-shadow: none;
+        border: 1px solid #000;
+    }
+
+    .modal-overlay {
+        position: static;
+        background: none;
+    }
+
+    .modal-content {
+        box-shadow: none;
+        border: 1px solid #000;
+    }
+
+    .modal-header {
+        background: #f0f0f0 !important;
+        color: #000 !important;
+    }
+
+    .close-btn,
+    .modal-actions {
+        display: none !important;
+    }
+}
+
+/* أنماط التجاوب للشاشات الصغيرة */
+@media (max-width: 768px) {
+    .assignments-cards-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .assignment-card .assignment-stats {
+        grid-template-columns: 1fr;
+    }
+
+    .assignment-card .card-actions {
+        flex-direction: column;
+    }
+
+    .pagination-container {
+        flex-direction: column;
+        gap: 15px;
+        text-align: center;
+    }
+
+    .pagination-controls {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .modal-content {
+        width: 95%;
+        max-height: 95vh;
+    }
+
+    .performance-grid {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+/* أنماط إضافية للتفاعل */
+.btn:focus {
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+.assignment-table th {
+    position: sticky;
+    top: 0;
+    background-color: #f8f9fa;
+    z-index: 10;
+}
+
+.count-display {
+    font-weight: 600;
+    padding: 2px 6px;
+    background-color: #e3f2fd;
+    border-radius: 4px;
+    font-size: 0.875rem;
+}
+
+/* أنماط التحميل والرسائل */
+.loading-indicator {
+    text-align: center;
+    padding: 40px;
+    color: #6c757d;
+}
+
+.no-results {
+    text-align: center;
+    padding: 40px;
+    color: #6c757d;
+    font-style: italic;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    border: 1px dashed #ced4da;
+}
+
+.error-message.general-error {
+    background-color: #f8d7da;
+    color: #721c24;
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid #f5c6cb;
+    margin-bottom: 20px;
+}
+
+/* تحسينات إضافية للواجهة */
+.view-controls {
+    display: flex;
+    gap: 5px;
+}
+
+.view-btn {
+    background: none;
+    border: 2px solid #ced4da;
+    border-radius: 6px;
+    width: 40px;
+    height: 40px;
+    font-size: 1.2rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.view-btn:hover {
+    border-color: #007bff;
+    background-color: #f8f9fa;
+}
+
+.view-btn.active {
+    background-color: #007bff;
+    color: white;
+    border-color: #007bff;
+}
+
+/* أنماط معاينة الغرف */
+.rooms-preview {
+    border-top: 1px solid #e9ecef;
+    padding-top: 15px;
+}
+
+.rooms-list {
+    max-height: 100px;
+    overflow-y: auto;
+}
+
+/* تحسينات الأداء البصري */
+* {
+    box-sizing: border-box;
+}
+
+.assignment-card,
+.modal-content,
+.btn {
+    will-change: transform;
+}
+
+/* أنماط للحالات الخاصة */
+.missing-staff {
+    color: #dc3545;
+    font-style: italic;
+    font-weight: 600;
+}
+
+.observer-chip {
+    display: inline-block;
+    margin: 2px;
+    padding: 4px 8px;
+    background-color: #e3f2fd;
+    color: #1976d2;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    border: 1px solid #bbdefb;
+}
