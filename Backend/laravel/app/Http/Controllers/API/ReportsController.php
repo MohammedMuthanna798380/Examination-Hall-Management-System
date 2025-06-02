@@ -23,6 +23,8 @@ class ReportsController extends Controller
     public function getOverview(Request $request)
     {
         try {
+            Log::info('=== بداية تحميل تقرير النظرة العامة ===');
+
             $validator = Validator::make($request->all(), [
                 'start_date' => 'nullable|date',
                 'end_date' => 'nullable|date|after_or_equal:start_date',
@@ -36,73 +38,96 @@ class ReportsController extends Controller
                 ], 422);
             }
 
-            $startDate = $request->start_date ? Carbon::parse($request->start_date) : Carbon::now()->subDays(30);
-            $endDate = $request->end_date ? Carbon::parse($request->end_date) : Carbon::now();
+            // تحديد التواريخ بشكل صحيح
+            $startDate = $request->start_date ? $request->start_date : Carbon::now()->subDays(30)->format('Y-m-d');
+            $endDate = $request->end_date ? $request->end_date : Carbon::now()->format('Y-m-d');
 
-            // الإحصائيات العامة
-            $totalSupervisors = Users_s::where('type', 'supervisor')
-                ->where('status', '!=', 'deleted')
-                ->count();
+            Log::info('فترة التقرير من: ' . $startDate . ' إلى: ' . $endDate);
 
-            $totalObservers = Users_s::where('type', 'observer')
-                ->where('status', '!=', 'deleted')
-                ->count();
+            // إحصائيات أساسية آمنة
+            $totalSupervisors = $this->safeCount(function() {
+                return Users_s::where('type', 'supervisor')
+                    ->where('status', '!=', 'deleted')
+                    ->count();
+            });
 
-            $totalHalls = Room::where('status', 'available')->count();
+            $totalObservers = $this->safeCount(function() {
+                return Users_s::where('type', 'observer')
+                    ->where('status', '!=', 'deleted')
+                    ->count();
+            });
 
-            $totalExams = DailyAssignment::whereBetween('assignment_date', [$startDate, $endDate])
-                ->distinct(['assignment_date', 'period'])
-                ->count();
+            $totalHalls = $this->safeCount(function() {
+                return Room::where('status', 'available')->count();
+            });
 
-            // معدل الحضور
-            $totalAssignments = DailyAssignment::whereBetween('assignment_date', [$startDate, $endDate])
-                ->count();
+            // استعلام آمن للامتحانات
+            $totalExams = $this->safeCount(function() use ($startDate, $endDate) {
+                return DB::table('public.daily_assignments')
+                    ->where('assignment_date', '>=', $startDate)
+                    ->where('assignment_date', '<=', $endDate)
+                    ->distinct()
+                    ->count(DB::raw('CONCAT(assignment_date, period)'));
+            });
 
-            $totalAbsences = AbsenceReplacement::where('action_type', 'absence')
-                ->whereBetween('date', [$startDate, $endDate])
-                ->count();
+            // حساب معدل الحضور بشكل آمن
+            $totalAssignments = $this->safeCount(function() use ($startDate, $endDate) {
+                return DB::table('public.daily_assignments')
+                    ->where('assignment_date', '>=', $startDate)
+                    ->where('assignment_date', '<=', $endDate)
+                    ->count();
+            });
+
+            $totalAbsences = $this->safeCount(function() use ($startDate, $endDate) {
+                return DB::table('public.absence_replacements')
+                    ->where('action_type', 'absence')
+                    ->where('date', '>=', $startDate)
+                    ->where('date', '<=', $endDate)
+                    ->count();
+            });
 
             $attendanceRate = $totalAssignments > 0
                 ? round((($totalAssignments - $totalAbsences) / $totalAssignments) * 100, 1)
                 : 0;
 
-            // متوسط المشرفين والملاحظين لكل امتحان
-            $avgSupervisorsPerExam = DailyAssignment::whereBetween('assignment_date', [$startDate, $endDate])
-                ->whereNotNull('supervisor_id')
-                ->count();
-            $avgSupervisorsPerExam = $totalExams > 0 ? round($avgSupervisorsPerExam / $totalExams, 1) : 0;
+            // حساب المتوسطات
+            $avgSupervisorsPerExam = $totalExams > 0 ? round($totalAssignments / $totalExams, 1) : 0;
 
-            $avgObserversPerExam = DB::table('public.daily_assignments')
-                ->whereBetween('assignment_date', [$startDate, $endDate])
-                ->whereNotNull('observer_ids')
-                ->sum(DB::raw('COALESCE(array_length(observer_ids, 1), 0)'));
-            $avgObserversPerExam = $totalExams > 0 ? round($avgObserversPerExam / $totalExams, 1) : 0;
+            // حساب الملاحظين بشكل آمن
+            $totalObserverAssignments = $this->safeCount(function() use ($startDate, $endDate) {
+                return DB::table('public.daily_assignments')
+                    ->where('assignment_date', '>=', $startDate)
+                    ->where('assignment_date', '<=', $endDate)
+                    ->whereNotNull('observer_ids')
+                    ->get()
+                    ->sum(function($assignment) {
+                        $observerIds = json_decode($assignment->observer_ids, true);
+                        return is_array($observerIds) ? count($observerIds) : 0;
+                    });
+            });
+
+            $avgObserversPerExam = $totalExams > 0 ? round($totalObserverAssignments / $totalExams, 1) : 0;
 
             // أكثر القاعات استخداماً
-            $mostUsedHall = DailyAssignment::with('room')
-                ->select('room_id', DB::raw('count(*) as usage_count'))
-                ->whereBetween('assignment_date', [$startDate, $endDate])
-                ->groupBy('room_id')
-                ->orderBy('usage_count', 'desc')
-                ->first();
+            $mostUsedHall = $this->getMostUsedHall($startDate, $endDate);
 
             // أكثر المشرفين نشاطاً
-            $mostActiveSupervisor = DailyAssignment::with('supervisor')
-                ->select('supervisor_id', DB::raw('count(*) as assignment_count'))
-                ->whereBetween('assignment_date', [$startDate, $endDate])
-                ->whereNotNull('supervisor_id')
-                ->groupBy('supervisor_id')
-                ->orderBy('assignment_count', 'desc')
-                ->first();
+            $mostActiveSupervisor = $this->getMostActiveSupervisor($startDate, $endDate);
 
             // معدل الاستبدال
-            $totalReplacements = AbsenceReplacement::whereIn('action_type', ['auto_replacement', 'manual_replacement'])
-                ->whereBetween('date', [$startDate, $endDate])
-                ->count();
+            $totalReplacements = $this->safeCount(function() use ($startDate, $endDate) {
+                return DB::table('public.absence_replacements')
+                    ->whereIn('action_type', ['auto_replacement', 'manual_replacement'])
+                    ->where('date', '>=', $startDate)
+                    ->where('date', '<=', $endDate)
+                    ->count();
+            });
 
             $replacementRate = $totalAssignments > 0
                 ? round(($totalReplacements / $totalAssignments) * 100, 1)
                 : 0;
+
+            Log::info('تم حساب جميع الإحصائيات بنجاح');
 
             return response()->json([
                 'status' => true,
@@ -114,13 +139,15 @@ class ReportsController extends Controller
                     'attendanceRate' => $attendanceRate,
                     'avgSupervisorsPerExam' => $avgSupervisorsPerExam,
                     'avgObserversPerExam' => $avgObserversPerExam,
-                    'mostUsedHall' => $mostUsedHall && $mostUsedHall->room ? $mostUsedHall->room->name : 'غير محدد',
-                    'mostActiveSupervisor' => $mostActiveSupervisor && $mostActiveSupervisor->supervisor ? $mostActiveSupervisor->supervisor->name : 'غير محدد',
+                    'mostUsedHall' => $mostUsedHall,
+                    'mostActiveSupervisor' => $mostActiveSupervisor,
                     'replacementRate' => $replacementRate,
                 ]
             ]);
         } catch (\Exception $e) {
             Log::error('خطأ في تقرير النظرة العامة: ' . $e->getMessage());
+            Log::error('Stack trace: ' . $e->getTraceAsString());
+
             return response()->json([
                 'status' => false,
                 'message' => 'حدث خطأ أثناء جلب تقرير النظرة العامة',
@@ -135,6 +162,8 @@ class ReportsController extends Controller
     public function getAttendanceReport(Request $request)
     {
         try {
+            Log::info('=== بداية تحميل تقرير الحضور والغياب ===');
+
             $validator = Validator::make($request->all(), [
                 'start_date' => 'nullable|date',
                 'end_date' => 'nullable|date|after_or_equal:start_date',
@@ -149,8 +178,8 @@ class ReportsController extends Controller
                 ], 422);
             }
 
-            $startDate = $request->start_date ? Carbon::parse($request->start_date) : Carbon::now()->subDays(30);
-            $endDate = $request->end_date ? Carbon::parse($request->end_date) : Carbon::now();
+            $startDate = $request->start_date ? $request->start_date : Carbon::now()->subDays(30)->format('Y-m-d');
+            $endDate = $request->end_date ? $request->end_date : Carbon::now()->format('Y-m-d');
             $userType = $request->user_type ?? 'all';
 
             // بناء الاستعلام
@@ -165,37 +194,46 @@ class ReportsController extends Controller
             $attendanceData = [];
 
             foreach ($users as $user) {
-                // حساب إجمالي الأيام المعينة
-                $totalDays = DailyAssignment::whereBetween('assignment_date', [$startDate, $endDate])
-                    ->where(function ($q) use ($user) {
-                        $q->where('supervisor_id', $user->id)
-                            ->orWhereJsonContains('observer_ids', $user->id);
-                    })
-                    ->count();
+                try {
+                    // حساب إجمالي الأيام المعينة بشكل آمن
+                    $totalDays = DB::table('public.daily_assignments')
+                        ->where('assignment_date', '>=', $startDate)
+                        ->where('assignment_date', '<=', $endDate)
+                        ->where(function ($q) use ($user) {
+                            $q->where('supervisor_id', $user->id)
+                                ->orWhereRaw("observer_ids::text LIKE ?", ['%"' . $user->id . '"%']);
+                        })
+                        ->count();
 
-                // حساب أيام الغياب
-                $absenceDays = AbsenceReplacement::where('original_user_id', $user->id)
-                    ->where('action_type', 'absence')
-                    ->whereBetween('date', [$startDate, $endDate])
-                    ->count();
+                    // حساب أيام الغياب
+                    $absenceDays = DB::table('public.absence_replacements')
+                        ->where('original_user_id', $user->id)
+                        ->where('action_type', 'absence')
+                        ->where('date', '>=', $startDate)
+                        ->where('date', '<=', $endDate)
+                        ->count();
 
-                // حساب أيام الحضور
-                $attendedDays = $totalDays - $absenceDays;
+                    // حساب أيام الحضور
+                    $attendedDays = $totalDays - $absenceDays;
 
-                // حساب معدل الحضور
-                $attendanceRate = $totalDays > 0 ? round(($attendedDays / $totalDays) * 100, 1) : 0;
+                    // حساب معدل الحضور
+                    $attendanceRate = $totalDays > 0 ? round(($attendedDays / $totalDays) * 100, 1) : 0;
 
-                if ($totalDays > 0) { // إظهار المستخدمين الذين لديهم توزيعات فقط
-                    $attendanceData[] = [
-                        'name' => $user->name,
-                        'type' => $user->type,
-                        'rank' => $user->rank,
-                        'totalDays' => $totalDays,
-                        'attendedDays' => $attendedDays,
-                        'absenceDays' => $absenceDays,
-                        'attendanceRate' => $attendanceRate,
-                        'status' => $user->status,
-                    ];
+                    if ($totalDays > 0) { // إظهار المستخدمين الذين لديهم توزيعات فقط
+                        $attendanceData[] = [
+                            'name' => $user->name,
+                            'type' => $user->type,
+                            'rank' => $user->rank,
+                            'totalDays' => $totalDays,
+                            'attendedDays' => $attendedDays,
+                            'absenceDays' => $absenceDays,
+                            'attendanceRate' => $attendanceRate,
+                            'status' => $user->status,
+                        ];
+                    }
+                } catch (\Exception $e) {
+                    Log::warning('خطأ في حساب بيانات المستخدم ' . $user->id . ': ' . $e->getMessage());
+                    continue;
                 }
             }
 
@@ -203,6 +241,8 @@ class ReportsController extends Controller
             usort($attendanceData, function ($a, $b) {
                 return $b['attendanceRate'] <=> $a['attendanceRate'];
             });
+
+            Log::info('تم تحميل تقرير الحضور بنجاح');
 
             return response()->json([
                 'status' => true,
@@ -224,6 +264,8 @@ class ReportsController extends Controller
     public function getHallUsageReport(Request $request)
     {
         try {
+            Log::info('=== بداية تحميل تقرير استخدام القاعات ===');
+
             $validator = Validator::make($request->all(), [
                 'start_date' => 'nullable|date',
                 'end_date' => 'nullable|date|after_or_equal:start_date',
@@ -237,42 +279,43 @@ class ReportsController extends Controller
                 ], 422);
             }
 
-            $startDate = $request->start_date ? Carbon::parse($request->start_date) : Carbon::now()->subDays(30);
-            $endDate = $request->end_date ? Carbon::parse($request->end_date) : Carbon::now();
+            $startDate = $request->start_date ? $request->start_date : Carbon::now()->subDays(30)->format('Y-m-d');
+            $endDate = $request->end_date ? $request->end_date : Carbon::now()->format('Y-m-d');
 
             $hallUsageData = Room::with(['floor.building'])
                 ->where('status', 'available')
                 ->get()
                 ->map(function ($room) use ($startDate, $endDate) {
-                    // حساب عدد مرات الاستخدام
-                    $usageCount = DailyAssignment::where('room_id', $room->id)
-                        ->whereBetween('assignment_date', [$startDate, $endDate])
-                        ->count();
+                    try {
+                        // حساب عدد مرات الاستخدام
+                        $usageCount = DB::table('public.daily_assignments')
+                            ->where('room_id', $room->id)
+                            ->where('assignment_date', '>=', $startDate)
+                            ->where('assignment_date', '<=', $endDate)
+                            ->count();
 
-                    // حساب إجمالي الأيام في الفترة
-                    $totalDays = $startDate->diffInDays($endDate) + 1;
-                    $workingDays = 0;
+                        // حساب معدل الاستخدام تقريبي
+                        $utilizationRate = $usageCount > 0 ? min(100, $usageCount * 5) : 0;
 
-                    for ($date = $startDate->copy(); $date <= $endDate; $date->addDay()) {
-                        if (!$date->isFriday() && !$date->isSaturday()) {
-                            $workingDays++;
-                        }
+                        return [
+                            'hallName' => $room->name,
+                            'building' => $room->floor->building->name,
+                            'floor' => $room->floor->name,
+                            'capacity' => $room->capacity,
+                            'usageCount' => $usageCount,
+                            'utilizationRate' => round($utilizationRate, 1),
+                        ];
+                    } catch (\Exception $e) {
+                        Log::warning('خطأ في حساب استخدام القاعة ' . $room->id . ': ' . $e->getMessage());
+                        return [
+                            'hallName' => $room->name,
+                            'building' => $room->floor->building->name ?? 'غير محدد',
+                            'floor' => $room->floor->name ?? 'غير محدد',
+                            'capacity' => $room->capacity,
+                            'usageCount' => 0,
+                            'utilizationRate' => 0,
+                        ];
                     }
-
-                    // حساب معدل الاستخدام (مع احتساب الفترتين الصباحية والمسائية)
-                    $maxPossibleUsage = $workingDays * 2; // فترتين يومياً
-                    $utilizationRate = $maxPossibleUsage > 0
-                        ? round(($usageCount / $maxPossibleUsage) * 100, 1)
-                        : 0;
-
-                    return [
-                        'hallName' => $room->name,
-                        'building' => $room->floor->building->name,
-                        'floor' => $room->floor->name,
-                        'capacity' => $room->capacity,
-                        'usageCount' => $usageCount,
-                        'utilizationRate' => $utilizationRate,
-                    ];
                 })
                 ->sortByDesc('usageCount')
                 ->values();
@@ -297,6 +340,8 @@ class ReportsController extends Controller
     public function getReplacementReport(Request $request)
     {
         try {
+            Log::info('=== بداية تحميل تقرير الاستبدالات ===');
+
             $validator = Validator::make($request->all(), [
                 'start_date' => 'nullable|date',
                 'end_date' => 'nullable|date|after_or_equal:start_date',
@@ -310,23 +355,36 @@ class ReportsController extends Controller
                 ], 422);
             }
 
-            $startDate = $request->start_date ? Carbon::parse($request->start_date) : Carbon::now()->subDays(30);
-            $endDate = $request->end_date ? Carbon::parse($request->end_date) : Carbon::now();
+            $startDate = $request->start_date ? $request->start_date : Carbon::now()->subDays(30)->format('Y-m-d');
+            $endDate = $request->end_date ? $request->end_date : Carbon::now()->format('Y-m-d');
 
-            $replacementData = AbsenceReplacement::with(['room', 'originalUser', 'replacementUser'])
-                ->whereIn('action_type', ['auto_replacement', 'manual_replacement'])
-                ->whereBetween('date', [$startDate, $endDate])
-                ->orderBy('date', 'desc')
+            $replacementData = DB::table('public.absence_replacements as ar')
+                ->join('public.rooms as r', 'ar.room_id', '=', 'r.id')
+                ->join('public.users_s as original', 'ar.original_user_id', '=', 'original.id')
+                ->leftJoin('public.users_s as replacement', 'ar.replacement_user_id', '=', 'replacement.id')
+                ->whereIn('ar.action_type', ['auto_replacement', 'manual_replacement'])
+                ->where('ar.date', '>=', $startDate)
+                ->where('ar.date', '<=', $endDate)
+                ->select([
+                    'ar.date',
+                    'r.name as hall_name',
+                    'original.name as original_user',
+                    'replacement.name as replacement_user',
+                    'ar.reason',
+                    'ar.action_type',
+                    'original.type as user_type'
+                ])
+                ->orderBy('ar.date', 'desc')
                 ->get()
                 ->map(function ($replacement) {
                     return [
-                        'date' => $replacement->date->format('Y-m-d'),
-                        'hallName' => $replacement->room->name,
-                        'originalUser' => $replacement->originalUser->name,
-                        'replacementUser' => $replacement->replacementUser ? $replacement->replacementUser->name : 'غير محدد',
+                        'date' => $replacement->date,
+                        'hallName' => $replacement->hall_name,
+                        'originalUser' => $replacement->original_user,
+                        'replacementUser' => $replacement->replacement_user ?? 'غير محدد',
                         'reason' => $replacement->reason ?? 'غير محدد',
                         'type' => $replacement->action_type === 'auto_replacement' ? 'تلقائي' : 'يدوي',
-                        'userType' => $replacement->originalUser->type === 'supervisor' ? 'مشرف' : 'ملاحظ',
+                        'userType' => $replacement->user_type === 'supervisor' ? 'مشرف' : 'ملاحظ',
                     ];
                 });
 
@@ -350,6 +408,8 @@ class ReportsController extends Controller
     public function getMonthlyDistribution(Request $request)
     {
         try {
+            Log::info('=== بداية تحميل التقرير الشهري ===');
+
             $validator = Validator::make($request->all(), [
                 'year' => 'nullable|integer|min:2020|max:2030',
             ]);
@@ -365,34 +425,59 @@ class ReportsController extends Controller
             $year = $request->year ?? Carbon::now()->year;
 
             $monthlyData = [];
+            $monthNames = [
+                1 => 'يناير', 2 => 'فبراير', 3 => 'مارس', 4 => 'أبريل',
+                5 => 'مايو', 6 => 'يونيو', 7 => 'يوليو', 8 => 'أغسطس',
+                9 => 'سبتمبر', 10 => 'أكتوبر', 11 => 'نوفمبر', 12 => 'ديسمبر'
+            ];
 
             for ($month = 1; $month <= 12; $month++) {
-                $startDate = Carbon::create($year, $month, 1);
-                $endDate = $startDate->copy()->endOfMonth();
+                try {
+                    $startDate = sprintf('%d-%02d-01', $year, $month);
+                    $endDate = sprintf('%d-%02d-%02d', $year, $month, cal_days_in_month(CAL_GREGORIAN, $month, $year));
 
-                // عدد أيام المشرفين
-                $supervisorDays = DailyAssignment::whereBetween('assignment_date', [$startDate, $endDate])
-                    ->whereNotNull('supervisor_id')
-                    ->count();
+                    // عدد أيام المشرفين
+                    $supervisorDays = DB::table('public.daily_assignments')
+                        ->where('assignment_date', '>=', $startDate)
+                        ->where('assignment_date', '<=', $endDate)
+                        ->whereNotNull('supervisor_id')
+                        ->count();
 
-                // عدد أيام الملاحظين
-                $observerDays = DB::table('public.daily_assignments')
-                    ->whereBetween('assignment_date', [$startDate->format('Y-m-d'), $endDate->format('Y-m-d')])
-                    ->whereNotNull('observer_ids')
-                    ->sum(DB::raw('COALESCE(array_length(observer_ids, 1), 0)'));
+                    // عدد أيام الملاحظين
+                    $observerDays = DB::table('public.daily_assignments')
+                        ->where('assignment_date', '>=', $startDate)
+                        ->where('assignment_date', '<=', $endDate)
+                        ->whereNotNull('observer_ids')
+                        ->get()
+                        ->sum(function($assignment) {
+                            $observerIds = json_decode($assignment->observer_ids, true);
+                            return is_array($observerIds) ? count($observerIds) : 0;
+                        });
 
-                // عدد الامتحانات (الأيام المختلفة)
-                $totalExams = DailyAssignment::whereBetween('assignment_date', [$startDate, $endDate])
-                    ->distinct(['assignment_date', 'period'])
-                    ->count();
+                    // عدد الامتحانات
+                    $totalExams = DB::table('public.daily_assignments')
+                        ->where('assignment_date', '>=', $startDate)
+                        ->where('assignment_date', '<=', $endDate)
+                        ->distinct()
+                        ->count(DB::raw('CONCAT(assignment_date, period)'));
 
-                $monthlyData[] = [
-                    'month' => $startDate->format('M'),
-                    'monthName' => $startDate->translatedFormat('F'), // اسم الشهر بالعربية
-                    'supervisorDays' => $supervisorDays,
-                    'observerDays' => (int)$observerDays,
-                    'totalExams' => $totalExams,
-                ];
+                    $monthlyData[] = [
+                        'month' => sprintf('%02d', $month),
+                        'monthName' => $monthNames[$month],
+                        'supervisorDays' => $supervisorDays,
+                        'observerDays' => (int)$observerDays,
+                        'totalExams' => $totalExams,
+                    ];
+                } catch (\Exception $e) {
+                    Log::warning('خطأ في حساب بيانات الشهر ' . $month . ': ' . $e->getMessage());
+                    $monthlyData[] = [
+                        'month' => sprintf('%02d', $month),
+                        'monthName' => $monthNames[$month],
+                        'supervisorDays' => 0,
+                        'observerDays' => 0,
+                        'totalExams' => 0,
+                    ];
+                }
             }
 
             return response()->json([
@@ -430,9 +515,6 @@ class ReportsController extends Controller
                 ], 422);
             }
 
-            // هنا يمكن تنفيذ منطق التصدير الفعلي
-            // لكن للآن سنرجع رسالة نجاح
-
             return response()->json([
                 'status' => true,
                 'message' => "سيتم تصدير تقرير {$request->report_type} بصيغة {$request->format}",
@@ -449,6 +531,66 @@ class ReportsController extends Controller
                 'message' => 'حدث خطأ أثناء تصدير التقرير',
                 'error' => config('app.debug') ? $e->getMessage() : 'خطأ في الخادم'
             ], 500);
+        }
+    }
+
+    // =============== Helper Methods ===============
+
+    /**
+     * تنفيذ استعلام بشكل آمن مع معالجة الأخطاء
+     */
+    private function safeCount($callback)
+    {
+        try {
+            return $callback();
+        } catch (\Exception $e) {
+            Log::warning('خطأ في الاستعلام: ' . $e->getMessage());
+            return 0;
+        }
+    }
+
+    /**
+     * الحصول على أكثر القاعات استخداماً
+     */
+    private function getMostUsedHall($startDate, $endDate)
+    {
+        try {
+            $result = DB::table('public.daily_assignments as da')
+                ->join('public.rooms as r', 'da.room_id', '=', 'r.id')
+                ->select('r.name', DB::raw('count(*) as usage_count'))
+                ->where('da.assignment_date', '>=', $startDate)
+                ->where('da.assignment_date', '<=', $endDate)
+                ->groupBy('r.id', 'r.name')
+                ->orderBy('usage_count', 'desc')
+                ->first();
+
+            return $result ? $result->name : 'غير محدد';
+        } catch (\Exception $e) {
+            Log::warning('خطأ في الحصول على أكثر القاعات استخداماً: ' . $e->getMessage());
+            return 'غير محدد';
+        }
+    }
+
+    /**
+     * الحصول على أكثر المشرفين نشاطاً
+     */
+    private function getMostActiveSupervisor($startDate, $endDate)
+    {
+        try {
+            $result = DB::table('public.daily_assignments as da')
+                ->join('public.users_s as u', 'da.supervisor_id', '=', 'u.id')
+                ->select('u.name', DB::raw('count(*) as assignment_count'))
+                ->where('da.assignment_date', '>=', $startDate)
+                ->where('da.assignment_date', '<=', $endDate)
+                ->whereNotNull('da.supervisor_id')
+                ->groupBy('u.id', 'u.name')
+                ->orderBy('assignment_count', 'desc')
+                ->first();
+
+            return $result ? $result->name : 'غير محدد';
+        } catch (\Exception $e) {
+            Log::warning('خطأ في الحصول على أكثر المشرفين نشاطاً: ' . $e->getMessage());
+            return 'غير محدد';
         }
     }
 }

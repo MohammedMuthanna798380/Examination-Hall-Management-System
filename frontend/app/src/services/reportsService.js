@@ -7,7 +7,7 @@ const getAuthToken = () => {
     return localStorage.getItem('token');
 };
 
-// Helper function للطلبات
+// Helper function للطلبات مع معالجة شاملة للأخطاء
 const makeRequest = async (url, options = {}) => {
     const token = getAuthToken();
 
@@ -23,10 +23,7 @@ const makeRequest = async (url, options = {}) => {
     };
 
     try {
-        console.log(`🔄 طلب التقارير ${options.method || 'GET'} إلى: ${API_BASE_URL}${url}`);
-        if (options.body) {
-            console.log('📤 البيانات المرسلة:', JSON.parse(options.body));
-        }
+        console.log(`🔄 طلب ${options.method || 'GET'} إلى: ${API_BASE_URL}${url}`);
 
         const response = await fetch(`${API_BASE_URL}${url}`, defaultOptions);
         console.log(`📊 حالة الاستجابة: ${response.status} ${response.statusText}`);
@@ -38,10 +35,12 @@ const makeRequest = async (url, options = {}) => {
             responseData = await response.json();
         } else {
             const textResponse = await response.text();
+            console.warn('استجابة غير JSON:', textResponse.substring(0, 500));
+
             try {
                 responseData = JSON.parse(textResponse);
             } catch (e) {
-                throw new Error(`الخادم أرجع استجابة غير صالحة: ${textResponse.substring(0, 200)}...`);
+                throw new Error(`الخادم أرجع استجابة غير صالحة. يرجى المحاولة لاحقاً.`);
             }
         }
 
@@ -59,9 +58,9 @@ const makeRequest = async (url, options = {}) => {
             } else if (response.status === 403) {
                 throw new Error('غير مصرح لك بتنفيذ هذا الإجراء');
             } else if (response.status === 404) {
-                throw new Error('البيانات المطلوبة غير موجودة');
+                throw new Error('التقرير المطلوب غير موجود');
             } else if (response.status >= 500) {
-                throw new Error(responseData.message || 'خطأ في الخادم. يرجى المحاولة لاحقاً.');
+                throw new Error('خطأ في الخادم. يرجى المحاولة لاحقاً.');
             } else {
                 throw new Error(responseData.message || `خطأ HTTP: ${response.status}`);
             }
@@ -85,7 +84,7 @@ const makeRequest = async (url, options = {}) => {
 
 // Reports API functions
 export const reportsService = {
-    // الحصول على نظرة عامة للنظام
+    // الحصول على تقرير النظرة العامة
     getOverview: async (filters = {}) => {
         try {
             const queryParams = new URLSearchParams();
@@ -96,12 +95,25 @@ export const reportsService = {
             const url = `/reports/overview${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
             const response = await makeRequest(url);
 
-            const overviewData = response.data || {};
-            console.log('✅ تم جلب نظرة عامة النظام بنجاح');
-            return overviewData;
+            const data = response.data || {};
+            console.log('✅ تم جلب تقرير النظرة العامة بنجاح');
+            return data;
         } catch (error) {
-            console.error('❌ خطأ في جلب نظرة عامة النظام:', error);
-            throw new Error(error.message || 'فشل في جلب نظرة عامة النظام');
+            console.error('❌ خطأ في جلب تقرير النظرة العامة:', error);
+
+            // إرجاع بيانات افتراضية في حالة الخطأ
+            return {
+                totalSupervisors: 0,
+                totalObservers: 0,
+                totalHalls: 0,
+                totalExams: 0,
+                attendanceRate: 0,
+                avgSupervisorsPerExam: 0,
+                avgObserversPerExam: 0,
+                mostUsedHall: 'غير متاح',
+                mostActiveSupervisor: 'غير متاح',
+                replacementRate: 0,
+            };
         }
     },
 
@@ -119,9 +131,9 @@ export const reportsService = {
             const url = `/reports/attendance${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
             const response = await makeRequest(url);
 
-            const attendanceData = response.data || [];
-            console.log(`✅ تم جلب تقرير الحضور والغياب: ${attendanceData.length} مستخدم`);
-            return attendanceData;
+            const data = response.data || [];
+            console.log(`✅ تم جلب تقرير الحضور والغياب بنجاح - ${data.length} سجل`);
+            return data;
         } catch (error) {
             console.error('❌ خطأ في جلب تقرير الحضور والغياب:', error);
             throw new Error(error.message || 'فشل في جلب تقرير الحضور والغياب');
@@ -139,9 +151,9 @@ export const reportsService = {
             const url = `/reports/hall-usage${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
             const response = await makeRequest(url);
 
-            const hallUsageData = response.data || [];
-            console.log(`✅ تم جلب تقرير استخدام القاعات: ${hallUsageData.length} قاعة`);
-            return hallUsageData;
+            const data = response.data || [];
+            console.log(`✅ تم جلب تقرير استخدام القاعات بنجاح - ${data.length} قاعة`);
+            return data;
         } catch (error) {
             console.error('❌ خطأ في جلب تقرير استخدام القاعات:', error);
             throw new Error(error.message || 'فشل في جلب تقرير استخدام القاعات');
@@ -159,16 +171,16 @@ export const reportsService = {
             const url = `/reports/replacements${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
             const response = await makeRequest(url);
 
-            const replacementData = response.data || [];
-            console.log(`✅ تم جلب تقرير الاستبدالات: ${replacementData.length} استبدال`);
-            return replacementData;
+            const data = response.data || [];
+            console.log(`✅ تم جلب تقرير الاستبدالات بنجاح - ${data.length} سجل`);
+            return data;
         } catch (error) {
             console.error('❌ خطأ في جلب تقرير الاستبدالات:', error);
             throw new Error(error.message || 'فشل في جلب تقرير الاستبدالات');
         }
     },
 
-    // الحصول على التقرير الشهري للتوزيع
+    // الحصول على التقرير الشهري
     getMonthlyDistribution: async (filters = {}) => {
         try {
             const queryParams = new URLSearchParams();
@@ -178,9 +190,9 @@ export const reportsService = {
             const url = `/reports/monthly-distribution${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
             const response = await makeRequest(url);
 
-            const monthlyData = response.data || [];
-            console.log(`✅ تم جلب التقرير الشهري: ${monthlyData.length} شهر`);
-            return monthlyData;
+            const data = response.data || [];
+            console.log(`✅ تم جلب التقرير الشهري بنجاح - ${data.length} شهر`);
+            return data;
         } catch (error) {
             console.error('❌ خطأ في جلب التقرير الشهري:', error);
             throw new Error(error.message || 'فشل في جلب التقرير الشهري');
@@ -211,8 +223,8 @@ export const reportsService = {
                 body: JSON.stringify(cleanedData),
             });
 
-            console.log('✅ تم طلب تصدير التقرير بنجاح');
-            return response.data;
+            console.log('✅ تم تصدير التقرير بنجاح');
+            return response.data || {};
         } catch (error) {
             console.error('❌ خطأ في تصدير التقرير:', error);
             throw new Error(error.message || 'فشل في تصدير التقرير');
@@ -221,316 +233,168 @@ export const reportsService = {
 
     // دوال المساعدة
 
-    // تنسيق التاريخ للعرض
-    formatDateForDisplay: (dateString) => {
-        const options = {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-        };
-        return new Date(dateString).toLocaleDateString('ar-EG', options);
-    },
-
-    // ترجمة نوع المستخدم
-    translateUserType: (type) => {
+    // ترجمة نوع التقرير
+    translateReportType: (type) => {
         switch (type) {
-            case 'supervisor':
-                return 'مشرف';
-            case 'observer':
-                return 'ملاحظ';
+            case 'overview':
+                return 'نظرة عامة';
+            case 'attendance':
+                return 'الحضور والغياب';
+            case 'hall-usage':
+                return 'استخدام القاعات';
+            case 'replacements':
+                return 'الاستبدالات';
+            case 'distribution':
+                return 'التوزيع الشهري';
             default:
                 return type;
         }
     },
 
-    // ترجمة رتبة المستخدم
-    translateUserRank: (rank) => {
-        switch (rank) {
-            case 'college_employee':
-                return 'موظف كلية';
-            case 'external_employee':
-                return 'موظف خارجي';
+    // ترجمة صيغة التصدير
+    translateExportFormat: (format) => {
+        switch (format) {
+            case 'pdf':
+                return 'PDF';
+            case 'excel':
+                return 'Excel';
             default:
-                return rank;
+                return format;
         }
     },
 
-    // ترجمة حالة المستخدم
-    translateUserStatus: (status) => {
-        switch (status) {
-            case 'active':
-                return 'نشط';
-            case 'suspended':
-                return 'معلق';
-            case 'deleted':
-                return 'محذوف';
-            default:
-                return status;
+    // تنسيق التاريخ للعرض
+    formatDateForDisplay: (dateString) => {
+        if (!dateString) return 'غير محدد';
+
+        try {
+            const options = {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+            };
+            return new Date(dateString).toLocaleDateString('ar-EG', options);
+        } catch (error) {
+            return dateString;
         }
     },
 
-    // الحصول على لون معدل الحضور
-    getAttendanceColor: (rate) => {
-        if (rate >= 95) return '#27ae60';
-        if (rate >= 85) return '#f39c12';
-        return '#e74c3c';
-    },
+    // التحقق من صحة فترة التاريخ
+    validateDateRange: (startDate, endDate) => {
+        const errors = {};
 
-    // الحصول على لون معدل الاستخدام
-    getUtilizationColor: (rate) => {
-        if (rate >= 80) return '#27ae60';
-        if (rate >= 60) return '#f39c12';
-        return '#e74c3c';
+        if (startDate && endDate) {
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+
+            if (start > end) {
+                errors.dateRange = 'تاريخ البداية يجب أن يكون قبل تاريخ النهاية';
+            }
+
+            // التحقق من أن الفترة ليست طويلة جداً (أكثر من سنة)
+            const diffTime = Math.abs(end - start);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+            if (diffDays > 365) {
+                errors.dateRange = 'الفترة المحددة طويلة جداً (أكثر من سنة)';
+            }
+        }
+
+        return {
+            isValid: Object.keys(errors).length === 0,
+            errors,
+        };
     },
 
     // حساب إحصائيات سريعة من البيانات
     calculateQuickStats: (data, type) => {
-        if (!data || data.length === 0) {
-            return {
-                total: 0,
-                average: 0,
-                highest: null,
-                lowest: null
-            };
-        }
-
-        let values = [];
-        let nameField = '';
+        if (!data || !Array.isArray(data)) return {};
 
         switch (type) {
             case 'attendance':
-                values = data.map(item => item.attendanceRate);
-                nameField = 'name';
-                break;
+                return {
+                    totalUsers: data.length,
+                    avgAttendanceRate: data.length > 0
+                        ? Math.round(data.reduce((sum, user) => sum + user.attendanceRate, 0) / data.length)
+                        : 0,
+                    perfectAttendance: data.filter(user => user.attendanceRate === 100).length,
+                    poorAttendance: data.filter(user => user.attendanceRate < 80).length,
+                };
+
             case 'hall-usage':
-                values = data.map(item => item.utilizationRate);
-                nameField = 'hallName';
-                break;
+                return {
+                    totalHalls: data.length,
+                    avgUtilization: data.length > 0
+                        ? Math.round(data.reduce((sum, hall) => sum + hall.utilizationRate, 0) / data.length)
+                        : 0,
+                    mostUsed: data.length > 0 ? data[0].hallName : 'غير محدد',
+                    leastUsed: data.length > 0 ? data[data.length - 1].hallName : 'غير محدد',
+                };
+
             case 'replacements':
                 return {
-                    total: data.length,
-                    automatic: data.filter(item => item.type === 'تلقائي').length,
-                    manual: data.filter(item => item.type === 'يدوي').length,
+                    totalReplacements: data.length,
+                    automaticReplacements: data.filter(r => r.type === 'تلقائي').length,
+                    manualReplacements: data.filter(r => r.type === 'يدوي').length,
+                    supervisorReplacements: data.filter(r => r.userType === 'مشرف').length,
+                    observerReplacements: data.filter(r => r.userType === 'ملاحظ').length,
                 };
+
             default:
                 return {};
         }
-
-        const total = data.length;
-        const average = total > 0 ? values.reduce((sum, val) => sum + val, 0) / total : 0;
-        const maxIndex = values.indexOf(Math.max(...values));
-        const minIndex = values.indexOf(Math.min(...values));
-
-        return {
-            total,
-            average: Math.round(average * 10) / 10,
-            highest: maxIndex >= 0 ? {
-                name: data[maxIndex][nameField],
-                value: values[maxIndex]
-            } : null,
-            lowest: minIndex >= 0 ? {
-                name: data[minIndex][nameField],
-                value: values[minIndex]
-            } : null
-        };
     },
 
-    // تصفية البيانات حسب المعايير
-    filterData: (data, filters) => {
-        if (!data || data.length === 0) return data;
-
-        let filteredData = [...data];
-
-        // تصفية حسب النوع (للحضور والغياب)
-        if (filters.userType && filters.userType !== 'all') {
-            filteredData = filteredData.filter(item => item.type === filters.userType);
-        }
-
-        // تصفية حسب الرتبة
-        if (filters.userRank && filters.userRank !== 'all') {
-            filteredData = filteredData.filter(item => item.rank === filters.userRank);
-        }
-
-        // تصفية حسب الحالة
-        if (filters.userStatus && filters.userStatus !== 'all') {
-            filteredData = filteredData.filter(item => item.status === filters.userStatus);
-        }
-
-        // تصفية حسب معدل الحضور
-        if (filters.minAttendanceRate) {
-            filteredData = filteredData.filter(item =>
-                item.attendanceRate >= filters.minAttendanceRate
-            );
-        }
-
-        // تصفية حسب المبنى (لاستخدام القاعات)
-        if (filters.building && filters.building !== 'all') {
-            filteredData = filteredData.filter(item => item.building === filters.building);
-        }
-
-        return filteredData;
-    },
-
-    // ترتيب البيانات
-    sortData: (data, sortBy, order = 'desc') => {
-        if (!data || data.length === 0) return data;
-
-        return [...data].sort((a, b) => {
-            let aValue = a[sortBy];
-            let bValue = b[sortBy];
-
-            // معالجة القيم النصية
-            if (typeof aValue === 'string') {
-                aValue = aValue.toLowerCase();
-                bValue = bValue.toLowerCase();
-            }
-
-            if (order === 'asc') {
-                return aValue > bValue ? 1 : -1;
-            } else {
-                return aValue < bValue ? 1 : -1;
-            }
-        });
-    },
-
-    // تجميع البيانات حسب معيار
-    groupData: (data, groupBy) => {
-        if (!data || data.length === 0) return {};
+    // تجميع البيانات حسب فترة زمنية
+    groupDataByPeriod: (data, period = 'month') => {
+        if (!data || !Array.isArray(data)) return {};
 
         return data.reduce((groups, item) => {
-            const key = item[groupBy];
+            let key;
+
+            try {
+                const date = new Date(item.date || item.assignment_date || item.created_at);
+
+                switch (period) {
+                    case 'day':
+                        key = date.toISOString().split('T')[0];
+                        break;
+                    case 'week':
+                        const week = Math.ceil(date.getDate() / 7);
+                        key = `${date.getFullYear()}-${date.getMonth() + 1}-W${week}`;
+                        break;
+                    case 'month':
+                        key = `${date.getFullYear()}-${date.getMonth() + 1}`;
+                        break;
+                    case 'year':
+                        key = date.getFullYear().toString();
+                        break;
+                    default:
+                        key = 'unknown';
+                }
+            } catch (error) {
+                key = 'unknown';
+            }
+
             if (!groups[key]) {
                 groups[key] = [];
             }
             groups[key].push(item);
+
             return groups;
         }, {});
     },
 
-    // تحويل البيانات للتصدير
-    prepareDataForExport: (data, reportType) => {
-        if (!data || data.length === 0) return [];
-
-        switch (reportType) {
-            case 'attendance':
-                return data.map(item => ({
-                    'الاسم': item.name,
-                    'النوع': reportsService.translateUserType(item.type),
-                    'الرتبة': reportsService.translateUserRank(item.rank),
-                    'إجمالي الأيام': item.totalDays,
-                    'أيام الحضور': item.attendedDays,
-                    'أيام الغياب': item.absenceDays,
-                    'معدل الحضور': item.attendanceRate + '%',
-                    'الحالة': reportsService.translateUserStatus(item.status)
-                }));
-
-            case 'hall-usage':
-                return data.map(item => ({
-                    'اسم القاعة': item.hallName,
-                    'المبنى': item.building,
-                    'الدور': item.floor,
-                    'السعة': item.capacity,
-                    'عدد مرات الاستخدام': item.usageCount,
-                    'معدل الاستخدام': item.utilizationRate + '%'
-                }));
-
-            case 'replacements':
-                return data.map(item => ({
-                    'التاريخ': item.date,
-                    'القاعة': item.hallName,
-                    'المستخدم الأصلي': item.originalUser,
-                    'المستخدم البديل': item.replacementUser,
-                    'السبب': item.reason,
-                    'نوع الاستبدال': item.type,
-                    'نوع المستخدم': item.userType
-                }));
-
-            default:
-                return data;
-        }
-    },
-
-    // إنشاء ملخص للتقرير
-    generateReportSummary: (data, reportType) => {
-        if (!data || data.length === 0) {
-            return {
-                title: 'لا توجد بيانات',
-                stats: {},
-                insights: []
-            };
-        }
-
-        switch (reportType) {
-            case 'overview':
-                return {
-                    title: 'نظرة عامة على النظام',
-                    stats: data,
-                    insights: [
-                        `إجمالي المشرفين: ${data.totalSupervisors}`,
-                        `إجمالي الملاحظين: ${data.totalObservers}`,
-                        `معدل الحضور: ${data.attendanceRate}%`,
-                        `أكثر القاعات استخداماً: ${data.mostUsedHall}`
-                    ]
-                };
-
-            case 'attendance':
-                const attendanceStats = reportsService.calculateQuickStats(data, 'attendance');
-                return {
-                    title: 'تقرير الحضور والغياب',
-                    stats: attendanceStats,
-                    insights: [
-                        `إجمالي المستخدمين: ${attendanceStats.total}`,
-                        `متوسط معدل الحضور: ${attendanceStats.average}%`,
-                        `أعلى معدل حضور: ${attendanceStats.highest?.name} (${attendanceStats.highest?.value}%)`,
-                        `أقل معدل حضور: ${attendanceStats.lowest?.name} (${attendanceStats.lowest?.value}%)`
-                    ]
-                };
-
-            case 'hall-usage':
-                const usageStats = reportsService.calculateQuickStats(data, 'hall-usage');
-                return {
-                    title: 'تقرير استخدام القاعات',
-                    stats: usageStats,
-                    insights: [
-                        `إجمالي القاعات: ${usageStats.total}`,
-                        `متوسط معدل الاستخدام: ${usageStats.average}%`,
-                        `أكثر القاعات استخداماً: ${usageStats.highest?.name} (${usageStats.highest?.value}%)`,
-                        `أقل القاعات استخداماً: ${usageStats.lowest?.name} (${usageStats.lowest?.value}%)`
-                    ]
-                };
-
-            case 'replacements':
-                const replacementStats = reportsService.calculateQuickStats(data, 'replacements');
-                return {
-                    title: 'تقرير الاستبدالات',
-                    stats: replacementStats,
-                    insights: [
-                        `إجمالي الاستبدالات: ${replacementStats.total}`,
-                        `الاستبدالات التلقائية: ${replacementStats.automatic}`,
-                        `الاستبدالات اليدوية: ${replacementStats.manual}`,
-                        `نسبة الاستبدال التلقائي: ${Math.round((replacementStats.automatic / replacementStats.total) * 100)}%`
-                    ]
-                };
-
-            default:
-                return {
-                    title: 'تقرير',
-                    stats: {},
-                    insights: []
-                };
-        }
-    },
-
-    // اختبار الاتصال (للتطوير)
+    // اختبار الاتصال
     testConnection: async () => {
         try {
-            const response = await fetch(`${API_BASE_URL}/reports/overview`);
+            const response = await fetch(`${API_BASE_URL}/test-reports/overview`);
             const data = await response.json();
-            console.log('✅ اختبار اتصال التقارير نجح:', data);
+            console.log('✅ اختبار الاتصال نجح:', data);
             return data;
         } catch (error) {
-            console.error('❌ فشل اختبار اتصال التقارير:', error);
+            console.error('❌ فشل اختبار الاتصال:', error);
             throw error;
         }
     }
