@@ -377,6 +377,43 @@ Route::prefix('test-absence')->group(function () {
     Route::post('/manual-replace', [AbsenceReplacementController::class, 'manualReplace']);
 });
 
+// Route::middleware('auth:sanctum')->group(function () {
+
+//     // مسارات التقارير والإحصائيات
+//     Route::prefix('reports')->group(function () {
+//         // نظرة عامة على النظام
+//         Route::get('/overview', [ReportsController::class, 'getOverview']);
+
+//         // تقرير الحضور والغياب
+//         Route::get('/attendance', [ReportsController::class, 'getAttendanceReport']);
+
+//         // تقرير استخدام القاعات
+//         Route::get('/hall-usage', [ReportsController::class, 'getHallUsageReport']);
+
+//         // تقرير الاستبدالات
+//         Route::get('/replacements', [ReportsController::class, 'getReplacementReport']);
+
+//         // التقرير الشهري للتوزيع
+//         Route::get('/monthly-distribution', [ReportsController::class, 'getMonthlyDistribution']);
+
+//         // تصدير التقارير
+//         Route::post('/export', [ReportsController::class, 'exportReport']);
+//     });
+// });
+
+// // للاختبار - مسارات غير محمية (يمكن حذفها لاحقاً)
+// Route::prefix('test-reports')->group(function () {
+//     Route::get('/overview', [ReportsController::class, 'getOverview']);
+//     Route::get('/attendance', [ReportsController::class, 'getAttendanceReport']);
+//     Route::get('/hall-usage', [ReportsController::class, 'getHallUsageReport']);
+//     Route::get('/replacements', [ReportsController::class, 'getReplacementReport']);
+//     Route::get('/monthly-distribution', [ReportsController::class, 'getMonthlyDistribution']);
+//     Route::post('/export', [ReportsController::class, 'exportReport']);
+// });
+
+
+
+// مسارات التقارير المحمية بالمصادقة
 Route::middleware('auth:sanctum')->group(function () {
 
     // مسارات التقارير والإحصائيات
@@ -398,10 +435,13 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // تصدير التقارير
         Route::post('/export', [ReportsController::class, 'exportReport']);
+
+        // اختبار اتصال التقارير
+        Route::get('/test-connection', [ReportsController::class, 'testReportsConnection']);
     });
 });
 
-// للاختبار - مسارات غير محمية (يمكن حذفها لاحقاً)
+// مسارات اختبار التقارير (غير محمية - للتطوير فقط)
 Route::prefix('test-reports')->group(function () {
     Route::get('/overview', [ReportsController::class, 'getOverview']);
     Route::get('/attendance', [ReportsController::class, 'getAttendanceReport']);
@@ -409,4 +449,58 @@ Route::prefix('test-reports')->group(function () {
     Route::get('/replacements', [ReportsController::class, 'getReplacementReport']);
     Route::get('/monthly-distribution', [ReportsController::class, 'getMonthlyDistribution']);
     Route::post('/export', [ReportsController::class, 'exportReport']);
+    Route::get('/test-connection', [ReportsController::class, 'testReportsConnection']);
+});
+
+// مسار اختبار البيانات للتقارير
+Route::get('/test-reports-data', function () {
+    try {
+        Log::info('=== اختبار بيانات التقارير ===');
+
+        $data = [
+            'users_count' => \App\Models\Users_s::count(),
+            'rooms_count' => \App\Models\Room::count(),
+            'assignments_count' => 0,
+            'replacements_count' => 0,
+        ];
+
+        // فحص جدول التوزيعات
+        if (Schema::hasTable('public.daily_assignments')) {
+            $data['assignments_count'] = DB::table('public.daily_assignments')->count();
+        }
+
+        // فحص جدول الاستبدالات
+        if (Schema::hasTable('public.absence_replacements')) {
+            $data['replacements_count'] = DB::table('public.absence_replacements')->count();
+        }
+
+        // عينة من البيانات
+        $sampleData = [];
+
+        $sampleData['users'] = \App\Models\Users_s::take(3)->select('id', 'name', 'type')->get();
+        $sampleData['rooms'] = \App\Models\Room::with(['floor.building'])->take(3)->get();
+
+        if (Schema::hasTable('public.daily_assignments')) {
+            $sampleData['assignments'] = DB::table('public.daily_assignments')
+                ->take(3)
+                ->get();
+        }
+
+        return response()->json([
+            'status' => true,
+            'message' => 'تم اختبار بيانات التقارير بنجاح',
+            'counts' => $data,
+            'sample_data' => $sampleData,
+            'timestamp' => now()->toDateTimeString(),
+        ]);
+    } catch (\Exception $e) {
+        Log::error('خطأ في اختبار بيانات التقارير: ' . $e->getMessage());
+
+        return response()->json([
+            'status' => false,
+            'message' => 'فشل في اختبار بيانات التقارير',
+            'error' => $e->getMessage(),
+            'timestamp' => now()->toDateTimeString(),
+        ], 500);
+    }
 });

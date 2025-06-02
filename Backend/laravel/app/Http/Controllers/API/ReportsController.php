@@ -45,24 +45,24 @@ class ReportsController extends Controller
             Log::info('فترة التقرير من: ' . $startDate . ' إلى: ' . $endDate);
 
             // إحصائيات أساسية آمنة
-            $totalSupervisors = $this->safeCount(function() {
+            $totalSupervisors = $this->safeCount(function () {
                 return Users_s::where('type', 'supervisor')
                     ->where('status', '!=', 'deleted')
                     ->count();
             });
 
-            $totalObservers = $this->safeCount(function() {
+            $totalObservers = $this->safeCount(function () {
                 return Users_s::where('type', 'observer')
                     ->where('status', '!=', 'deleted')
                     ->count();
             });
 
-            $totalHalls = $this->safeCount(function() {
+            $totalHalls = $this->safeCount(function () {
                 return Room::where('status', 'available')->count();
             });
 
             // استعلام آمن للامتحانات
-            $totalExams = $this->safeCount(function() use ($startDate, $endDate) {
+            $totalExams = $this->safeCount(function () use ($startDate, $endDate) {
                 return DB::table('public.daily_assignments')
                     ->where('assignment_date', '>=', $startDate)
                     ->where('assignment_date', '<=', $endDate)
@@ -71,14 +71,14 @@ class ReportsController extends Controller
             });
 
             // حساب معدل الحضور بشكل آمن
-            $totalAssignments = $this->safeCount(function() use ($startDate, $endDate) {
+            $totalAssignments = $this->safeCount(function () use ($startDate, $endDate) {
                 return DB::table('public.daily_assignments')
                     ->where('assignment_date', '>=', $startDate)
                     ->where('assignment_date', '<=', $endDate)
                     ->count();
             });
 
-            $totalAbsences = $this->safeCount(function() use ($startDate, $endDate) {
+            $totalAbsences = $this->safeCount(function () use ($startDate, $endDate) {
                 return DB::table('public.absence_replacements')
                     ->where('action_type', 'absence')
                     ->where('date', '>=', $startDate)
@@ -94,13 +94,13 @@ class ReportsController extends Controller
             $avgSupervisorsPerExam = $totalExams > 0 ? round($totalAssignments / $totalExams, 1) : 0;
 
             // حساب الملاحظين بشكل آمن
-            $totalObserverAssignments = $this->safeCount(function() use ($startDate, $endDate) {
+            $totalObserverAssignments = $this->safeCount(function () use ($startDate, $endDate) {
                 return DB::table('public.daily_assignments')
                     ->where('assignment_date', '>=', $startDate)
                     ->where('assignment_date', '<=', $endDate)
                     ->whereNotNull('observer_ids')
                     ->get()
-                    ->sum(function($assignment) {
+                    ->sum(function ($assignment) {
                         $observerIds = json_decode($assignment->observer_ids, true);
                         return is_array($observerIds) ? count($observerIds) : 0;
                     });
@@ -115,7 +115,7 @@ class ReportsController extends Controller
             $mostActiveSupervisor = $this->getMostActiveSupervisor($startDate, $endDate);
 
             // معدل الاستبدال
-            $totalReplacements = $this->safeCount(function() use ($startDate, $endDate) {
+            $totalReplacements = $this->safeCount(function () use ($startDate, $endDate) {
                 return DB::table('public.absence_replacements')
                     ->whereIn('action_type', ['auto_replacement', 'manual_replacement'])
                     ->where('date', '>=', $startDate)
@@ -214,7 +214,7 @@ class ReportsController extends Controller
                         ->count();
 
                     // حساب أيام الحضور
-                    $attendedDays = $totalDays - $absenceDays;
+                    $attendedDays = max(0, $totalDays - $absenceDays);
 
                     // حساب معدل الحضور
                     $attendanceRate = $totalDays > 0 ? round(($attendedDays / $totalDays) * 100, 1) : 0;
@@ -242,7 +242,7 @@ class ReportsController extends Controller
                 return $b['attendanceRate'] <=> $a['attendanceRate'];
             });
 
-            Log::info('تم تحميل تقرير الحضور بنجاح');
+            Log::info('تم تحميل تقرير الحضور بنجاح - ' . count($attendanceData) . ' مستخدم');
 
             return response()->json([
                 'status' => true,
@@ -294,8 +294,14 @@ class ReportsController extends Controller
                             ->where('assignment_date', '<=', $endDate)
                             ->count();
 
-                        // حساب معدل الاستخدام تقريبي
-                        $utilizationRate = $usageCount > 0 ? min(100, $usageCount * 5) : 0;
+                        // حساب عدد الأيام العمل في الفترة
+                        $workingDays = $this->calculateWorkingDays($startDate, $endDate);
+
+                        // حساب معدل الاستخدام (مع احتساب فترتين يومياً)
+                        $maxPossibleUsage = $workingDays * 2; // فترة صباحية ومسائية
+                        $utilizationRate = $maxPossibleUsage > 0
+                            ? round(($usageCount / $maxPossibleUsage) * 100, 1)
+                            : 0;
 
                         return [
                             'hallName' => $room->name,
@@ -303,7 +309,7 @@ class ReportsController extends Controller
                             'floor' => $room->floor->name,
                             'capacity' => $room->capacity,
                             'usageCount' => $usageCount,
-                            'utilizationRate' => round($utilizationRate, 1),
+                            'utilizationRate' => $utilizationRate,
                         ];
                     } catch (\Exception $e) {
                         Log::warning('خطأ في حساب استخدام القاعة ' . $room->id . ': ' . $e->getMessage());
@@ -319,6 +325,8 @@ class ReportsController extends Controller
                 })
                 ->sortByDesc('usageCount')
                 ->values();
+
+            Log::info('تم تحميل تقرير استخدام القاعات بنجاح - ' . $hallUsageData->count() . ' قاعة');
 
             return response()->json([
                 'status' => true,
@@ -358,35 +366,44 @@ class ReportsController extends Controller
             $startDate = $request->start_date ? $request->start_date : Carbon::now()->subDays(30)->format('Y-m-d');
             $endDate = $request->end_date ? $request->end_date : Carbon::now()->format('Y-m-d');
 
-            $replacementData = DB::table('public.absence_replacements as ar')
-                ->join('public.rooms as r', 'ar.room_id', '=', 'r.id')
-                ->join('public.users_s as original', 'ar.original_user_id', '=', 'original.id')
-                ->leftJoin('public.users_s as replacement', 'ar.replacement_user_id', '=', 'replacement.id')
-                ->whereIn('ar.action_type', ['auto_replacement', 'manual_replacement'])
-                ->where('ar.date', '>=', $startDate)
-                ->where('ar.date', '<=', $endDate)
-                ->select([
-                    'ar.date',
-                    'r.name as hall_name',
-                    'original.name as original_user',
-                    'replacement.name as replacement_user',
-                    'ar.reason',
-                    'ar.action_type',
-                    'original.type as user_type'
-                ])
-                ->orderBy('ar.date', 'desc')
-                ->get()
-                ->map(function ($replacement) {
-                    return [
-                        'date' => $replacement->date,
-                        'hallName' => $replacement->hall_name,
-                        'originalUser' => $replacement->original_user,
-                        'replacementUser' => $replacement->replacement_user ?? 'غير محدد',
-                        'reason' => $replacement->reason ?? 'غير محدد',
-                        'type' => $replacement->action_type === 'auto_replacement' ? 'تلقائي' : 'يدوي',
-                        'userType' => $replacement->user_type === 'supervisor' ? 'مشرف' : 'ملاحظ',
-                    ];
-                });
+            $replacementData = collect();
+
+            try {
+                $replacementData = DB::table('public.absence_replacements as ar')
+                    ->join('public.rooms as r', 'ar.room_id', '=', 'r.id')
+                    ->join('public.users_s as original', 'ar.original_user_id', '=', 'original.id')
+                    ->leftJoin('public.users_s as replacement', 'ar.replacement_user_id', '=', 'replacement.id')
+                    ->whereIn('ar.action_type', ['auto_replacement', 'manual_replacement'])
+                    ->where('ar.date', '>=', $startDate)
+                    ->where('ar.date', '<=', $endDate)
+                    ->select([
+                        'ar.date',
+                        'r.name as hall_name',
+                        'original.name as original_user',
+                        'replacement.name as replacement_user',
+                        'ar.reason',
+                        'ar.action_type',
+                        'original.type as user_type'
+                    ])
+                    ->orderBy('ar.date', 'desc')
+                    ->get()
+                    ->map(function ($replacement) {
+                        return [
+                            'date' => $replacement->date,
+                            'hallName' => $replacement->hall_name,
+                            'originalUser' => $replacement->original_user,
+                            'replacementUser' => $replacement->replacement_user ?? 'غير محدد',
+                            'reason' => $replacement->reason ?? 'غير محدد',
+                            'type' => $replacement->action_type === 'auto_replacement' ? 'تلقائي' : 'يدوي',
+                            'userType' => $replacement->user_type === 'supervisor' ? 'مشرف' : 'ملاحظ',
+                        ];
+                    });
+            } catch (\Exception $e) {
+                Log::warning('تعذر جلب بيانات الاستبدالات: ' . $e->getMessage());
+                $replacementData = collect();
+            }
+
+            Log::info('تم تحميل تقرير الاستبدالات بنجاح - ' . $replacementData->count() . ' سجل');
 
             return response()->json([
                 'status' => true,
@@ -426,9 +443,18 @@ class ReportsController extends Controller
 
             $monthlyData = [];
             $monthNames = [
-                1 => 'يناير', 2 => 'فبراير', 3 => 'مارس', 4 => 'أبريل',
-                5 => 'مايو', 6 => 'يونيو', 7 => 'يوليو', 8 => 'أغسطس',
-                9 => 'سبتمبر', 10 => 'أكتوبر', 11 => 'نوفمبر', 12 => 'ديسمبر'
+                1 => 'يناير',
+                2 => 'فبراير',
+                3 => 'مارس',
+                4 => 'أبريل',
+                5 => 'مايو',
+                6 => 'يونيو',
+                7 => 'يوليو',
+                8 => 'أغسطس',
+                9 => 'سبتمبر',
+                10 => 'أكتوبر',
+                11 => 'نوفمبر',
+                12 => 'ديسمبر'
             ];
 
             for ($month = 1; $month <= 12; $month++) {
@@ -437,29 +463,35 @@ class ReportsController extends Controller
                     $endDate = sprintf('%d-%02d-%02d', $year, $month, cal_days_in_month(CAL_GREGORIAN, $month, $year));
 
                     // عدد أيام المشرفين
-                    $supervisorDays = DB::table('public.daily_assignments')
-                        ->where('assignment_date', '>=', $startDate)
-                        ->where('assignment_date', '<=', $endDate)
-                        ->whereNotNull('supervisor_id')
-                        ->count();
+                    $supervisorDays = $this->safeCount(function () use ($startDate, $endDate) {
+                        return DB::table('public.daily_assignments')
+                            ->where('assignment_date', '>=', $startDate)
+                            ->where('assignment_date', '<=', $endDate)
+                            ->whereNotNull('supervisor_id')
+                            ->count();
+                    });
 
                     // عدد أيام الملاحظين
-                    $observerDays = DB::table('public.daily_assignments')
-                        ->where('assignment_date', '>=', $startDate)
-                        ->where('assignment_date', '<=', $endDate)
-                        ->whereNotNull('observer_ids')
-                        ->get()
-                        ->sum(function($assignment) {
-                            $observerIds = json_decode($assignment->observer_ids, true);
-                            return is_array($observerIds) ? count($observerIds) : 0;
-                        });
+                    $observerDays = $this->safeCount(function () use ($startDate, $endDate) {
+                        return DB::table('public.daily_assignments')
+                            ->where('assignment_date', '>=', $startDate)
+                            ->where('assignment_date', '<=', $endDate)
+                            ->whereNotNull('observer_ids')
+                            ->get()
+                            ->sum(function ($assignment) {
+                                $observerIds = json_decode($assignment->observer_ids, true);
+                                return is_array($observerIds) ? count($observerIds) : 0;
+                            });
+                    });
 
                     // عدد الامتحانات
-                    $totalExams = DB::table('public.daily_assignments')
-                        ->where('assignment_date', '>=', $startDate)
-                        ->where('assignment_date', '<=', $endDate)
-                        ->distinct()
-                        ->count(DB::raw('CONCAT(assignment_date, period)'));
+                    $totalExams = $this->safeCount(function () use ($startDate, $endDate) {
+                        return DB::table('public.daily_assignments')
+                            ->where('assignment_date', '>=', $startDate)
+                            ->where('assignment_date', '<=', $endDate)
+                            ->distinct()
+                            ->count(DB::raw('CONCAT(assignment_date, period)'));
+                    });
 
                     $monthlyData[] = [
                         'month' => sprintf('%02d', $month),
@@ -479,6 +511,8 @@ class ReportsController extends Controller
                     ];
                 }
             }
+
+            Log::info('تم تحميل التقرير الشهري بنجاح للسنة ' . $year);
 
             return response()->json([
                 'status' => true,
@@ -500,6 +534,8 @@ class ReportsController extends Controller
     public function exportReport(Request $request)
     {
         try {
+            Log::info('=== بداية تصدير التقرير ===');
+
             $validator = Validator::make($request->all(), [
                 'report_type' => 'required|in:overview,attendance,hall-usage,replacements,distribution',
                 'format' => 'required|in:pdf,excel',
@@ -515,13 +551,33 @@ class ReportsController extends Controller
                 ], 422);
             }
 
+            $reportTypesArabic = [
+                'overview' => 'نظرة عامة',
+                'attendance' => 'الحضور والغياب',
+                'hall-usage' => 'استخدام القاعات',
+                'replacements' => 'الاستبدالات',
+                'distribution' => 'التوزيع الشهري'
+            ];
+
+            $formatArabic = $request->format === 'pdf' ? 'PDF' : 'Excel';
+            $reportTypeArabic = $reportTypesArabic[$request->report_type] ?? $request->report_type;
+
+            Log::info("تم طلب تصدير تقرير {$reportTypeArabic} بصيغة {$formatArabic}");
+
+            // هنا يمكن إضافة منطق التصدير الفعلي في المستقبل
+            // مثل استخدام مكتبات PDF أو Excel
+
             return response()->json([
                 'status' => true,
-                'message' => "سيتم تصدير تقرير {$request->report_type} بصيغة {$request->format}",
+                'message' => "تم طلب تصدير تقرير {$reportTypeArabic} بصيغة {$formatArabic} بنجاح",
                 'data' => [
                     'report_type' => $request->report_type,
+                    'report_type_arabic' => $reportTypeArabic,
                     'format' => $request->format,
+                    'format_arabic' => $formatArabic,
                     'generated_at' => now()->toDateTimeString(),
+                    'status' => 'requested',
+                    'download_url' => null, // سيتم إضافته عند تنفيذ التصدير الفعلي
                 ]
             ]);
         } catch (\Exception $e) {
@@ -545,6 +601,30 @@ class ReportsController extends Controller
             return $callback();
         } catch (\Exception $e) {
             Log::warning('خطأ في الاستعلام: ' . $e->getMessage());
+            return 0;
+        }
+    }
+
+    /**
+     * حساب أيام العمل في فترة معينة
+     */
+    private function calculateWorkingDays($startDate, $endDate)
+    {
+        try {
+            $start = Carbon::parse($startDate);
+            $end = Carbon::parse($endDate);
+            $workingDays = 0;
+
+            for ($date = $start->copy(); $date <= $end; $date->addDay()) {
+                // تخطي أيام الجمعة والسبت (عطلة نهاية الأسبوع)
+                if (!$date->isFriday() && !$date->isSaturday()) {
+                    $workingDays++;
+                }
+            }
+
+            return $workingDays;
+        } catch (\Exception $e) {
+            Log::warning('خطأ في حساب أيام العمل: ' . $e->getMessage());
             return 0;
         }
     }
@@ -591,6 +671,99 @@ class ReportsController extends Controller
         } catch (\Exception $e) {
             Log::warning('خطأ في الحصول على أكثر المشرفين نشاطاً: ' . $e->getMessage());
             return 'غير محدد';
+        }
+    }
+
+    /**
+     * التحقق من وجود الجدول
+     */
+    private function tableExists($tableName)
+    {
+        try {
+            return DB::getSchemaBuilder()->hasTable($tableName);
+        } catch (\Exception $e) {
+            Log::warning("تعذر التحقق من وجود الجدول {$tableName}: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * اختبار اتصال التقارير - للتشخيص
+     */
+    public function testReportsConnection()
+    {
+        try {
+            Log::info('=== اختبار اتصال التقارير ===');
+
+            $dbInfo = [
+                'connection' => DB::connection()->getName(),
+                'driver' => DB::connection()->getDriverName(),
+                'database' => DB::connection()->getDatabaseName(),
+            ];
+
+            $tableChecks = [
+                'users_s' => $this->tableExists('public.users_s'),
+                'rooms' => $this->tableExists('public.rooms'),
+                'daily_assignments' => $this->tableExists('public.daily_assignments'),
+                'absence_replacements' => $this->tableExists('public.absence_replacements'),
+            ];
+
+            $testCounts = [];
+            foreach ($tableChecks as $table => $exists) {
+                if ($exists) {
+                    try {
+                        switch ($table) {
+                            case 'users_s':
+                                $testCounts[$table] = Users_s::count();
+                                break;
+                            case 'rooms':
+                                $testCounts[$table] = Room::count();
+                                break;
+                            case 'daily_assignments':
+                                $testCounts[$table] = DB::table('public.daily_assignments')->count();
+                                break;
+                            case 'absence_replacements':
+                                $testCounts[$table] = DB::table('public.absence_replacements')->count();
+                                break;
+                        }
+                    } catch (\Exception $e) {
+                        $testCounts[$table] = 'خطأ: ' . $e->getMessage();
+                    }
+                } else {
+                    $testCounts[$table] = 'الجدول غير موجود';
+                }
+            }
+
+            // اختبار استعلام بسيط
+            $simpleTest = [];
+            try {
+                $simpleTest['total_users'] = Users_s::count();
+                $simpleTest['total_rooms'] = Room::count();
+                $simpleTest['current_time'] = now()->toDateTimeString();
+            } catch (\Exception $e) {
+                $simpleTest['error'] = $e->getMessage();
+            }
+
+            return response()->json([
+                'status' => true,
+                'message' => '✅ اختبار التقارير نجح',
+                'data' => [
+                    'database_info' => $dbInfo,
+                    'table_checks' => $tableChecks,
+                    'test_counts' => $testCounts,
+                    'simple_test' => $simpleTest,
+                    'timestamp' => now()->toDateTimeString(),
+                ]
+            ]);
+        } catch (\Exception $e) {
+            Log::error('❌ خطأ في اختبار اتصال التقارير: ' . $e->getMessage());
+
+            return response()->json([
+                'status' => false,
+                'message' => '❌ فشل اختبار التقارير',
+                'error' => $e->getMessage(),
+                'timestamp' => now()->toDateTimeString(),
+            ], 500);
         }
     }
 }

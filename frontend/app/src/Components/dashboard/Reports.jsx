@@ -116,14 +116,6 @@ const Reports = ({ onLogout }) => {
     window.print();
   };
 
-  const getAttendanceColor = (rate) => {
-    return reportsService.getAttendanceColor(rate);
-  };
-
-  const getUtilizationColor = (rate) => {
-    return reportsService.getUtilizationColor(rate);
-  };
-
   // عرض رسالة الخطأ
   if (error) {
     return (
@@ -133,49 +125,27 @@ const Reports = ({ onLogout }) => {
           <Header title="التقارير والإحصائيات" onRefresh={handleRefresh} />
 
           <div className="reports-content">
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                justifyContent: "center",
-                alignItems: "center",
-                height: "60vh",
-                padding: "20px",
-                textAlign: "center",
-                backgroundColor: "white",
-                borderRadius: "10px",
-                boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
-              }}
-            >
-              <div style={{ fontSize: "4rem", marginBottom: "20px" }}>❌</div>
-              <h2 style={{ color: "#e74c3c", marginBottom: "10px" }}>
-                فشل في تحميل التقارير
-              </h2>
-              <p
-                style={{
-                  color: "#7f8c8d",
-                  marginBottom: "30px",
-                  maxWidth: "500px",
-                }}
-              >
-                {error}
-              </p>
-              <button
-                onClick={handleRefresh}
-                disabled={isLoading}
-                style={{
-                  padding: "12px 24px",
-                  backgroundColor: isLoading ? "#95a5a6" : "#3498db",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "8px",
-                  cursor: isLoading ? "not-allowed" : "pointer",
-                  fontSize: "1rem",
-                  fontWeight: "bold",
-                }}
-              >
-                {isLoading ? "جاري إعادة المحاولة..." : "إعادة المحاولة"}
-              </button>
+            <div className="error-container">
+              <div className="error-content">
+                <div className="error-icon">❌</div>
+                <h2 className="error-message">فشل في تحميل التقارير</h2>
+                <p
+                  style={{
+                    color: "#7f8c8d",
+                    marginBottom: "30px",
+                    maxWidth: "500px",
+                  }}
+                >
+                  {error}
+                </p>
+                <button
+                  className="retry-btn"
+                  onClick={handleRefresh}
+                  disabled={isLoading}
+                >
+                  {isLoading ? "جاري إعادة المحاولة..." : "إعادة المحاولة"}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -318,7 +288,7 @@ const Reports = ({ onLogout }) => {
                         <p
                           className="big-number"
                           style={{
-                            color: getAttendanceColor(
+                            color: reportsService.getAttendanceColor(
                               reportData.overview.attendanceRate
                             ),
                           }}
@@ -374,7 +344,8 @@ const Reports = ({ onLogout }) => {
                   <h2>تقرير الحضور والغياب</h2>
 
                   {reportData.attendance.length === 0 ? (
-                    <div style={{ textAlign: "center", padding: "40px" }}>
+                    <div className="no-data-container">
+                      <div className="no-data-icon">📋</div>
                       <p>لا توجد بيانات حضور وغياب للفترة المحددة</p>
                     </div>
                   ) : (
@@ -415,7 +386,7 @@ const Reports = ({ onLogout }) => {
                                 <span
                                   className="attendance-rate"
                                   style={{
-                                    color: getAttendanceColor(
+                                    color: reportsService.getAttendanceColor(
                                       person.attendanceRate
                                     ),
                                   }}
@@ -443,7 +414,8 @@ const Reports = ({ onLogout }) => {
                   <h2>تقرير استخدام القاعات</h2>
 
                   {reportData.hallUsage.length === 0 ? (
-                    <div style={{ textAlign: "center", padding: "40px" }}>
+                    <div className="no-data-container">
+                      <div className="no-data-icon">🏢</div>
                       <p>لا توجد بيانات استخدام قاعات للفترة المحددة</p>
                     </div>
                   ) : (
@@ -473,7 +445,7 @@ const Reports = ({ onLogout }) => {
                                 <span
                                   className="utilization-rate"
                                   style={{
-                                    color: getUtilizationColor(
+                                    color: reportsService.getUtilizationColor(
                                       hall.utilizationRate
                                     ),
                                   }}
@@ -496,7 +468,8 @@ const Reports = ({ onLogout }) => {
                   <h2>تقرير الاستبدالات</h2>
 
                   {reportData.replacements.length === 0 ? (
-                    <div style={{ textAlign: "center", padding: "40px" }}>
+                    <div className="no-data-container">
+                      <div className="no-data-icon">🔄</div>
                       <p>لا توجد بيانات استبدالات للفترة المحددة</p>
                     </div>
                   ) : (
@@ -552,7 +525,8 @@ const Reports = ({ onLogout }) => {
                   <h2>تقرير التوزيع الشهري</h2>
 
                   {reportData.monthlyDistribution.length === 0 ? (
-                    <div style={{ textAlign: "center", padding: "40px" }}>
+                    <div className="no-data-container">
+                      <div className="no-data-icon">📊</div>
                       <p>لا توجد بيانات توزيع شهري</p>
                     </div>
                   ) : (

@@ -1,4 +1,4 @@
-// frontend/app/src/services/reportsService.js
+// frontend/app/src/services/reportsService.js - نسخة مصححة
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
 
@@ -231,7 +231,7 @@ export const reportsService = {
         }
     },
 
-    // دوال المساعدة
+    // دوال المساعدة والترجمة
 
     // ترجمة نوع التقرير
     translateReportType: (type) => {
@@ -261,6 +261,60 @@ export const reportsService = {
             default:
                 return format;
         }
+    },
+
+    // ترجمة نوع المستخدم
+    translateUserType: (type) => {
+        switch (type) {
+            case 'supervisor':
+                return 'مشرف';
+            case 'observer':
+                return 'ملاحظ';
+            default:
+                return type;
+        }
+    },
+
+    // ترجمة رتبة المستخدم
+    translateUserRank: (rank) => {
+        switch (rank) {
+            case 'college_employee':
+                return 'موظف كلية';
+            case 'external_employee':
+                return 'موظف خارجي';
+            default:
+                return rank;
+        }
+    },
+
+    // ترجمة حالة المستخدم
+    translateUserStatus: (status) => {
+        switch (status) {
+            case 'active':
+                return 'نشط';
+            case 'suspended':
+                return 'معلق';
+            case 'deleted':
+                return 'محذوف';
+            default:
+                return status;
+        }
+    },
+
+    // الحصول على لون معدل الحضور
+    getAttendanceColor: (rate) => {
+        if (rate >= 90) return '#27ae60'; // أخضر - ممتاز
+        if (rate >= 75) return '#f39c12'; // برتقالي - جيد
+        if (rate >= 60) return '#e67e22'; // برتقالي داكن - متوسط
+        return '#e74c3c'; // أحمر - ضعيف
+    },
+
+    // الحصول على لون معدل الاستخدام
+    getUtilizationColor: (rate) => {
+        if (rate >= 80) return '#27ae60'; // أخضر - عالي
+        if (rate >= 60) return '#f39c12'; // برتقالي - متوسط
+        if (rate >= 40) return '#e67e22'; // برتقالي داكن - منخفض
+        return '#e74c3c'; // أحمر - ضعيف جداً
     },
 
     // تنسيق التاريخ للعرض
